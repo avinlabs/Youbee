@@ -1,5 +1,6 @@
 {
   "name": "v2 Cricket",
   "description": "An interactive cricket score card application to manage players, teams, and live match scoring. Track runs, wickets, and overs with an intuitive interface.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "prompt": ""
 }

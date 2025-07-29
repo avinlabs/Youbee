@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'cricket-scorecard-v5'; // Increment cache version to force update
+const CACHE_NAME = 'cricket-scorecard-v6'; // Increment cache version to force update
 const urlsToCache = [
   '/',
   '/index.html',
@@ -9,6 +9,7 @@ const urlsToCache = [
   '/index.tsx',
   '/App.tsx',
   '/types.ts',
+  '/components/Login.tsx',
   '/components/CoinToss.tsx',
   '/components/FullScorecard.tsx',
   '/components/MatchSetup.tsx',
