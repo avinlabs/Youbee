@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'cricket-scorecard-v2'; // Increment cache version
+const CACHE_NAME = 'cricket-scorecard-v4'; // Increment cache version to force update
 const urlsToCache = [
   '/',
   '/index.html',

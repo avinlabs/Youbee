@@ -74,15 +74,15 @@ function checkCompletion(state: ScoreStateSnapshot, battingTeamName: string, bow
     return state;
 }
 
-function scoreReducer(state: ScoreState, action: ScoreAction): ScoreState {
-  // Handle state initialization and reset first to prevent errors on a null state.
+function scoreReducer(state: ScoreState | null, action: ScoreAction): ScoreState | null {
+  // Handle state initialization and reset first.
   if (action.type === 'SET_STATE') {
       return action.payload;
   }
 
-  // If state is not initialized, do not process other actions.
+  // If state is not initialized and the action is not SET_STATE, do nothing.
   if (!state) {
-    return state;
+    return null;
   }
   
   // After initialization, prevent most actions when an innings is over.
@@ -222,7 +222,7 @@ const App: React.FC = () => {
   const [tossWinnerBatting, setTossWinnerBatting] = useState<string | null>(null);
   const [matchConfig, setMatchConfig] = useState<MatchConfig | null>(null);
 
-  const [gameState, dispatch] = useReducer(scoreReducer, null, () => (null as unknown as ScoreState));
+  const [gameState, dispatch] = useReducer(scoreReducer, null);
   const [firstInningsSummary, setFirstInningsSummary] = useState<ScoreState | null>(null);
 
   const [showFullScorecard, setShowFullScorecard] = useState(false);
@@ -259,6 +259,7 @@ const App: React.FC = () => {
     setTeamB({ name: '', players: [] });
     setTossWinnerBatting(null);
     setFirstInningsSummary(null);
+    dispatch({ type: 'SET_STATE', payload: null! }); // Reset state
   }, []);
 
   const handleNextInnings = useCallback((firstInningsFinalState: ScoreState) => {
