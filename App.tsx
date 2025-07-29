@@ -259,7 +259,7 @@ const App: React.FC = () => {
     setTeamB({ name: '', players: [] });
     setTossWinnerBatting(null);
     setFirstInningsSummary(null);
-    dispatch({ type: 'SET_STATE', payload: null! }); // Reset state
+    dispatch({ type: 'SET_STATE', payload: null }); // Reset state
   }, []);
 
   const handleNextInnings = useCallback((firstInningsFinalState: ScoreState) => {
@@ -330,7 +330,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4 font-sans">
         <header className="w-full max-w-4xl text-center mb-8">
             <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                Cricket Score Card
+                Youbee Cricket Score Card
             </h1>
             <p className="text-slate-400 mt-2">The ultimate tool for your local cricket matches.</p>
         </header>
@@ -346,8 +346,8 @@ const App: React.FC = () => {
                 onClose={() => setShowFullScorecard(false)}
             />
         )}
-        <footer className="mt-8 text-slate-500 text-sm">
-            <p>Built with React, TypeScript, and Tailwind CSS</p>
+        <footer className="mt-8 text-slate-500 text-sm text-center">
+            <p>Developed by Avinash</p>
         </footer>
     </div>
   );

@@ -80,4 +80,4 @@ export type ScoreAction =
   | { type: 'SET_NEXT_BATSMAN'; payload: Player }
   | { type: 'SET_NEXT_BOWLER'; payload: Player }
   | { type: 'UNDO_OVER' }
-  | { type: 'SET_STATE'; payload: ScoreState };
+  | { type: 'SET_STATE'; payload: ScoreState | null };
