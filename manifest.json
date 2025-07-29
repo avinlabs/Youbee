@@ -1,0 +1,21 @@
+{
+  "short_name": "Cricket Score",
+  "name": "Cricket Score Card",
+  "description": "An interactive cricket score card application to manage players, teams, and live match scoring.",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#172554",
+  "background_color": "#0f172a"
+}
