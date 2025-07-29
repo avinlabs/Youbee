@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { ScoreState, Team } from '../types';
+import { ScoreState, Team } from '../types.ts';
 
 interface FullScorecardProps {
   firstInnings: ScoreState | null;

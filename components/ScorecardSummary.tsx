@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { ScoreState } from '../types';
+import { ScoreState } from '../types.ts';
 
 interface ScorecardSummaryProps {
   summary: ScoreState;

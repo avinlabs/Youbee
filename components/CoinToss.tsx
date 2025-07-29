@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { Team } from '../types';
+import { Team } from '../types.ts';
 
 interface CoinTossProps {
   teamA: Team;

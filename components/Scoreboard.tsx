@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Player, ScoreState, ScoreAction } from '../types';
+import { Player, ScoreState, ScoreAction } from '../types.ts';
 
 interface ScoreboardProps {
   state: ScoreState;

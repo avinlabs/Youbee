@@ -1,10 +1,21 @@
-const CACHE_NAME = 'cricket-scorecard-v1';
+
+const CACHE_NAME = 'cricket-scorecard-v2'; // Increment cache version
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-512.png',
+  '/index.tsx',
+  '/App.tsx',
+  '/types.ts',
+  '/components/CoinToss.tsx',
+  '/components/FullScorecard.tsx',
+  '/components/MatchSetup.tsx',
+  '/components/PlayerSetup.tsx',
+  '/components/Scoreboard.tsx',
+  '/components/ScorecardSummary.tsx',
+  '/components/TeamSetup.tsx'
 ];
 
 self.addEventListener('install', event => {
@@ -23,17 +34,21 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') {
     return;
   }
+  
+  // For navigation requests, always try network first, then fall back to cache.
+  // This helps avoid showing stale app shell.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        if (response) {
-          // Serve from cache
-          return response;
-        }
-
-        // Not in cache, fetch from network
-        return fetch(event.request).then(
+        // Cache-first strategy for assets
+        return response || fetch(event.request).then(
           networkResponse => {
             // Check if we received a valid response
             if (!networkResponse || networkResponse.status !== 200) {
@@ -52,7 +67,7 @@ self.addEventListener('fetch', event => {
           }
         ).catch(error => {
             console.error('Fetching failed:', error);
-            throw error;
+            // Optional: return an offline fallback page for assets if needed
         });
       })
   );

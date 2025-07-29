@@ -1,11 +1,12 @@
+
 import React, { useState, useCallback, useReducer } from 'react';
-import { AppState, Player, MatchConfig, Team, ScoreState, ScoreAction, BattingStats, BowlingStats, ScoreStateSnapshot } from './types';
-import PlayerSetup from './components/PlayerSetup';
-import MatchSetup from './components/MatchSetup';
-import Scoreboard from './components/Scoreboard';
-import TeamSetup from './components/TeamSetup';
-import CoinToss from './components/CoinToss';
-import FullScorecard from './components/FullScorecard';
+import { AppState, Player, MatchConfig, Team, ScoreState, ScoreAction, BattingStats, BowlingStats, ScoreStateSnapshot } from './types.ts';
+import PlayerSetup from './components/PlayerSetup.tsx';
+import MatchSetup from './components/MatchSetup.tsx';
+import Scoreboard from './components/Scoreboard.tsx';
+import TeamSetup from './components/TeamSetup.tsx';
+import CoinToss from './components/CoinToss.tsx';
+import FullScorecard from './components/FullScorecard.tsx';
 
 
 // Reducer Logic

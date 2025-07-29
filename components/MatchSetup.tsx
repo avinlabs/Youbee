@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { Player, MatchConfig, Team } from '../types';
+import { Player, MatchConfig, Team } from '../types.ts';
 
 interface MatchSetupProps {
   allPlayers: Player[];

@@ -1,5 +1,6 @@
+
 import React, { useState, useCallback } from 'react';
-import { Player } from '../types';
+import { Player } from '../types.ts';
 
 interface PlayerSetupProps {
   onPlayersSet: (players: Player[]) => void;
