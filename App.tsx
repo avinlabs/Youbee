@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useReducer, useEffect } from 'react';
-import { AppState, Player, MatchConfig, Team, ScoreState, ScoreAction, BattingStats, BowlingStats, ScoreStateSnapshot } from './types.ts';
+import { AppState, Player, MatchConfig, Team, ScoreState, ScoreAction, BattingStats, BowlingStats, ScoreStateSnapshot, ShareableScorecardState } from './types.ts';
 import PlayerSetup from './components/PlayerSetup.tsx';
 import MatchSetup from './components/MatchSetup.tsx';
 import Scoreboard from './components/Scoreboard.tsx';
@@ -8,6 +8,8 @@ import TeamSetup from './components/TeamSetup.tsx';
 import CoinToss from './components/CoinToss.tsx';
 import FullScorecard from './components/FullScorecard.tsx';
 import Login from './components/Login.tsx';
+import Register from './components/Register.tsx';
+import ManOfTheMatch from './components/ManOfTheMatch.tsx';
 
 
 // Reducer Logic
@@ -58,14 +60,13 @@ function checkCompletion(state: ScoreStateSnapshot, battingTeamName: string, bow
         return { ...state, inningsOver: true, matchOver: true, statusMessage: `${battingTeamName} won by ${wicketsInHand} wickets!` };
     }
 
-    // A team is all out when wickets taken equals the number of players. Allows "last man standing".
-    const allOut = state.wickets >= state.battingTeam.players.length;
+    const allOut = state.wickets >= state.battingTeam.players.length; // Last man standing rule
     const oversFinished = state.oversCompleted >= state.maxOvers;
 
     if (allOut || oversFinished) {
         if (state.target) { // Second innings ended
             const runDifference = state.target - 1 - state.runs;
-            const message = runDifference > 0 ? `${bowlingTeamName} won by ${runDifference} runs!` : 'Match Tied!';
+            const message = runDifference > 0 ? `${bowlingTeamName} won!` : 'Match Tied!';
             return { ...state, inningsOver: true, matchOver: true, statusMessage: message };
         } else { // First innings ended
             const message = allOut ? 'All Out!' : 'Innings Over!';
@@ -93,26 +94,21 @@ function scoreReducer(state: ScoreState | null, action: ScoreAction): ScoreState
   }
 
   if (action.type === 'UNDO_OVER') {
-      if (state.history.length <= 1) {
-          return state;
+      const overToReset = state.oversCompleted;
+      if (state.history.length <= 1) return state;
+      let lastStateOfPreviousOverIndex = -1;
+      for (let i = state.history.length - 2; i >= 0; i--) {
+        if (state.history[i].oversCompleted < overToReset) {
+          lastStateOfPreviousOverIndex = i;
+          break;
+        }
       }
-  
-      const currentOverNumber = state.oversCompleted;
-  
-      // Find the index of the first state snapshot that belongs to the current over.
-      // This snapshot represents the state at the beginning of the over.
-      const firstIndexOfOver = state.history.findIndex(s => s.oversCompleted === currentOverNumber);
-  
-      if (firstIndexOfOver !== -1) {
-          // This is the state snapshot from the beginning of the over.
-          const restoredSnapshot = state.history[firstIndexOfOver];
-          // The new history should be all snapshots up to and including that restored one.
-          const newHistory = state.history.slice(0, firstIndexOfOver + 1);
+      
+      if(lastStateOfPreviousOverIndex !== -1) {
+          const restoredSnapshot = state.history[lastStateOfPreviousOverIndex + 1] ?? state.history[0];
+          const newHistory = state.history.slice(0, lastStateOfPreviousOverIndex + 2);
           return { ...restoredSnapshot, history: newHistory };
       }
-  
-      // Fallback: If for some reason we can't find the start of the current over (e.g., first over),
-      // we reset to the absolute initial state of the innings.
       const initialSnapshot = state.history[0];
       return { ...initialSnapshot, history: [initialSnapshot] };
   }
@@ -161,9 +157,7 @@ function scoreReducer(state: ScoreState | null, action: ScoreAction): ScoreState
       let event = '';
 
       if (action.payload.type === 'Nb') {
-        intermediateState.fours += 1; // This is a house rule where a no ball + 4 counts as a four.
-        intermediateState.runs += action.payload.runs; // Add the automatic 4 runs for no ball
-        updateBowlerStats(intermediateState.currentBowlerId, { runsConceded: intermediateState.bowlingStats[intermediateState.currentBowlerId].runsConceded + action.payload.runs });
+        intermediateState.fours += 1;
         event = '4n';
       }
 
@@ -174,7 +168,7 @@ function scoreReducer(state: ScoreState | null, action: ScoreAction): ScoreState
         if (intermediateState.widesInCurrentOver === 3) {
             intermediateState.runs += 4;
             updateBowlerStats(intermediateState.currentBowlerId, { runsConceded: intermediateState.bowlingStats[intermediateState.currentBowlerId].runsConceded + 4 });
-            intermediateState.fours += 1; // This is a house rule
+            intermediateState.fours += 1;
             intermediateState.widesInCurrentOver = 0;
         }
       }
@@ -222,26 +216,24 @@ function scoreReducer(state: ScoreState | null, action: ScoreAction): ScoreState
   return { ...completedState, history: [...history, snapshot] };
 }
 
-
 const App: React.FC = () => {
-    // Load state from localStorage on initial render
-    const loadState = () => {
+    const [currentUser, setCurrentUser] = useState<string | null>(null);
+    const [publicScorecardData, setPublicScorecardData] = useState<ShareableScorecardState | null>(null);
+
+
+    const loadGameState = (username: string) => {
         try {
-            const serializedState = localStorage.getItem('youbeeCricketState');
-            if (serializedState === null) {
-                return undefined;
-            }
-            return JSON.parse(serializedState);
+            const serializedState = localStorage.getItem(`youbeeCricketState_${username}`);
+            return serializedState ? JSON.parse(serializedState) : undefined;
         } catch (err) {
             console.error("Could not load state from localStorage", err);
             return undefined;
         }
     };
 
-    const savedState = loadState();
+    const savedState = currentUser ? loadGameState(currentUser) : undefined;
 
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(savedState?.isAuthenticated || false);
-    const [appState, setAppState] = useState<AppState>(savedState?.appState || AppState.TEAM_SETUP);
+    const [appState, setAppState] = useState<AppState>(AppState.LOGIN);
     const [players, setPlayers] = useState<Player[]>(savedState?.players || []);
     const [teamA, setTeamA] = useState<Team>(savedState?.teamA || { name: '', players: [] });
     const [teamB, setTeamB] = useState<Team>(savedState?.teamB || { name: '', players: [] });
@@ -250,10 +242,44 @@ const App: React.FC = () => {
     const [gameState, dispatch] = useReducer(scoreReducer, savedState?.gameState || null);
     const [firstInningsSummary, setFirstInningsSummary] = useState<ScoreState | null>(savedState?.firstInningsSummary || null);
     const [showFullScorecard, setShowFullScorecard] = useState(false);
-    
-    // Save state to localStorage whenever it changes
+    const [showMotmModal, setShowMotmModal] = useState(false);
+
     useEffect(() => {
-        if (!isAuthenticated) return; // Don't save state if not logged in
+        // Public Scorecard Routing
+        const handleHashChange = () => {
+          const hash = window.location.hash;
+          if (hash.startsWith('#share/')) {
+            try {
+              const encodedData = hash.substring(7);
+              const jsonString = decodeURIComponent(atob(encodedData));
+              const data = JSON.parse(jsonString);
+              setPublicScorecardData(data);
+            } catch (error) {
+              console.error("Failed to parse shared scorecard data:", error);
+              // Clear hash if invalid
+              window.location.hash = '';
+            }
+          }
+        };
+
+        handleHashChange(); // Check on initial load
+        window.addEventListener('hashchange', handleHashChange);
+
+        return () => {
+          window.removeEventListener('hashchange', handleHashChange);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (publicScorecardData) return; // Don't try to load user data if on a public page
+        const loggedInUser = localStorage.getItem('youbeeCricketCurrentUser');
+        if (loggedInUser) {
+            handleLoginSuccess(loggedInUser);
+        }
+    }, [publicScorecardData]);
+
+    useEffect(() => {
+        if (!currentUser || publicScorecardData) return;
         try {
             const stateToSave = {
                 appState,
@@ -264,175 +290,226 @@ const App: React.FC = () => {
                 matchConfig,
                 gameState,
                 firstInningsSummary,
-                isAuthenticated,
             };
             const serializedState = JSON.stringify(stateToSave);
-            localStorage.setItem('youbeeCricketState', serializedState);
+            localStorage.setItem(`youbeeCricketState_${currentUser}`, serializedState);
         } catch (err) {
             console.error("Could not save state to localStorage", err);
         }
-    }, [appState, players, teamA, teamB, tossWinnerBatting, matchConfig, gameState, firstInningsSummary, isAuthenticated]);
+    }, [appState, players, teamA, teamB, tossWinnerBatting, matchConfig, gameState, firstInningsSummary, currentUser, publicScorecardData]);
 
-  const handleLogin = useCallback(() => {
-    setIsAuthenticated(true);
-  }, []);
-  
-  const handleLogout = useCallback(() => {
-    try {
-        localStorage.removeItem('youbeeCricketState');
-    } catch (err) {
-        console.error("Could not remove state from localStorage", err);
-    }
-    setAppState(AppState.TEAM_SETUP);
-    setPlayers([]);
-    setMatchConfig(null);
-    setTeamA({ name: '', players: [] });
-    setTeamB({ name: '', players: [] });
-    setTossWinnerBatting(null);
-    setFirstInningsSummary(null);
-    dispatch({ type: 'SET_STATE', payload: null });
-    setIsAuthenticated(false);
-  }, []);
-
-  const handleTeamsSet = useCallback((nameA: string, nameB: string) => {
-    setTeamA({ name: nameA, players: [] });
-    setTeamB({ name: nameB, players: [] });
-    setAppState(AppState.PLAYER_SETUP);
-  }, []);
-
-  const handlePlayersSet = useCallback((newPlayers: Player[]) => {
-    setPlayers(newPlayers);
-    setAppState(AppState.COIN_TOSS);
-  }, []);
-
-  const handleTossComplete = useCallback((battingTeamName: string) => {
-    setTossWinnerBatting(battingTeamName);
-    setAppState(AppState.MATCH_SETUP);
-  }, []);
-
-  const handleMatchStart = useCallback((config: MatchConfig) => {
-    setMatchConfig(config);
-    setFirstInningsSummary(null);
-    dispatch({ type: 'SET_STATE', payload: createInitialState(config, null) });
-    setAppState(AppState.SCOREBOARD);
-  }, []);
-
-  const handleNewGame = useCallback(() => {
-    setAppState(AppState.TEAM_SETUP);
-    setPlayers([]);
-    setMatchConfig(null);
-    setTeamA({ name: '', players: [] });
-    setTeamB({ name: '', players: [] });
-    setTossWinnerBatting(null);
-    setFirstInningsSummary(null);
-    dispatch({ type: 'SET_STATE', payload: null });
-  }, []);
-
-  const handleNextInnings = useCallback((firstInningsFinalState: ScoreState) => {
-    if (!matchConfig) return;
-
-    setFirstInningsSummary(firstInningsFinalState);
-    const newBattingTeamName = firstInningsFinalState.bowlingTeam.name;
-    const newBattingTeam = newBattingTeamName === matchConfig.teamA.name ? matchConfig.teamA : matchConfig.teamB;
-    const newBowlingTeam = newBattingTeamName === matchConfig.teamA.name ? matchConfig.teamB : matchConfig.teamA;
-    
-    const newConfig: MatchConfig = {
-      ...matchConfig,
-      battingTeamName: newBattingTeamName,
-      openingBatsman: newBattingTeam.players[0],
-      openingBowler: newBowlingTeam.players[0],
+    const handleLoginSuccess = (username: string) => {
+        setCurrentUser(username);
+        localStorage.setItem('youbeeCricketCurrentUser', username);
+        const userGameState = loadGameState(username);
+        if (userGameState) {
+            setAppState(userGameState.appState || AppState.PLAYER_SETUP);
+            setPlayers(userGameState.players || []);
+            setTeamA(userGameState.teamA || { name: '', players: [] });
+            setTeamB(userGameState.teamB || { name: '', players: [] });
+            setTossWinnerBatting(userGameState.tossWinnerBatting || null);
+            setMatchConfig(userGameState.matchConfig || null);
+            dispatch({ type: 'SET_STATE', payload: userGameState.gameState || null });
+            setFirstInningsSummary(userGameState.firstInningsSummary || null);
+        } else {
+            setAppState(AppState.PLAYER_SETUP);
+            // Reset all game state for new user
+            setPlayers([]);
+            setTeamA({ name: '', players: [] });
+            setTeamB({ name: '', players: [] });
+            setTossWinnerBatting(null);
+            setMatchConfig(null);
+            dispatch({ type: 'SET_STATE', payload: null });
+            setFirstInningsSummary(null);
+        }
     };
-    
-    setMatchConfig(newConfig);
-    const target = firstInningsFinalState.runs + 1;
-    dispatch({ type: 'SET_STATE', payload: createInitialState(newConfig, target) });
-  }, [matchConfig]);
 
+    const handleLogout = () => {
+        setCurrentUser(null);
+        localStorage.removeItem('youbeeCricketCurrentUser');
+        setAppState(AppState.LOGIN);
+    };
 
-  const renderContent = () => {
-    switch (appState) {
-      case AppState.TEAM_SETUP:
-        return <TeamSetup onTeamsSet={handleTeamsSet} />;
-      case AppState.PLAYER_SETUP:
-        return <PlayerSetup onPlayersSet={handlePlayersSet} teamAName={teamA.name} teamBName={teamB.name} />;
-      case AppState.COIN_TOSS:
-        return <CoinToss teamA={teamA} teamB={teamB} onTossComplete={handleTossComplete} />;
-      case AppState.MATCH_SETUP:
-        return <MatchSetup 
-                  allPlayers={players} 
-                  onMatchStart={handleMatchStart} 
-                  teamA={teamA}
-                  teamB={teamB}
-                  battingTeamName={tossWinnerBatting!}
-               />;
-      case AppState.SCOREBOARD:
-        if (!gameState || !matchConfig) return <div>Error: Match not configured</div>;
+    const handleTeamsSet = useCallback((nameA: string, nameB: string) => {
+        setTeamA({ name: nameA, players: [] });
+        setTeamB({ name: nameB, players: [] });
+        setAppState(AppState.COIN_TOSS);
+    }, []);
 
+    const handlePlayersSet = useCallback((newPlayers: Player[]) => {
+        setPlayers(newPlayers);
+        setAppState(AppState.TEAM_SETUP);
+    }, []);
+
+    const handleTossComplete = useCallback((battingTeamName: string) => {
+        setTossWinnerBatting(battingTeamName);
+        setAppState(AppState.MATCH_SETUP);
+    }, []);
+
+    const handleMatchStart = useCallback((config: MatchConfig) => {
+        setMatchConfig(config);
+        setFirstInningsSummary(null);
+        dispatch({ type: 'SET_STATE', payload: createInitialState(config, null) });
+        setAppState(AppState.SCOREBOARD);
+    }, []);
+
+    const handleNewGame = useCallback(() => {
+        if (currentUser) {
+            localStorage.removeItem(`youbeeCricketState_${currentUser}`);
+        }
+        setAppState(AppState.PLAYER_SETUP);
+        setPlayers([]);
+        setMatchConfig(null);
+        setTeamA({ name: '', players: [] });
+        setTeamB({ name: '', players: [] });
+        setTossWinnerBatting(null);
+        setFirstInningsSummary(null);
+        dispatch({ type: 'SET_STATE', payload: null });
+    }, [currentUser]);
+
+    const handleNextInnings = useCallback((firstInningsFinalState: ScoreState) => {
+        if (!matchConfig) return;
+
+        setFirstInningsSummary(firstInningsFinalState);
+        const newBattingTeamName = firstInningsFinalState.bowlingTeam.name;
+        const newBattingTeam = newBattingTeamName === matchConfig.teamA.name ? matchConfig.teamA : matchConfig.teamB;
+        const newBowlingTeam = newBattingTeamName === matchConfig.teamA.name ? matchConfig.teamB : matchConfig.teamA;
+
+        const newConfig: MatchConfig = {
+            ...matchConfig,
+            battingTeamName: newBattingTeamName,
+            openingBatsman: newBattingTeam.players[0],
+            openingBowler: newBowlingTeam.players[0],
+        };
+
+        setMatchConfig(newConfig);
+        const target = firstInningsFinalState.runs + 1;
+        dispatch({ type: 'SET_STATE', payload: createInitialState(newConfig, target) });
+    }, [matchConfig]);
+
+    const renderContent = () => {
+        switch (appState) {
+            case AppState.LOGIN:
+                return <Login onLoginSuccess={handleLoginSuccess} onSwitchToRegister={() => setAppState(AppState.REGISTER)} />;
+            case AppState.REGISTER:
+                return <Register onRegisterSuccess={handleLoginSuccess} onSwitchToLogin={() => setAppState(AppState.LOGIN)} />;
+            case AppState.PLAYER_SETUP:
+                return <PlayerSetup onPlayersSet={handlePlayersSet} players={players} />;
+            case AppState.TEAM_SETUP:
+                return <TeamSetup onTeamsSet={handleTeamsSet} teamA={teamA} teamB={teamB} />;
+            case AppState.COIN_TOSS:
+                return <CoinToss teamA={teamA} teamB={teamB} onTossComplete={handleTossComplete} />;
+            case AppState.MATCH_SETUP:
+                return <MatchSetup
+                    allPlayers={players}
+                    onMatchStart={handleMatchStart}
+                    teamA={teamA}
+                    teamB={teamB}
+                    battingTeamName={tossWinnerBatting!}
+                />;
+            case AppState.SCOREBOARD:
+                if (!gameState || !matchConfig) return <div>Error: Match not configured</div>;
+                return (
+                    <div className="animate-fade-in-up">
+                        <div className="w-full flex justify-end mb-4">
+                            <button
+                                onClick={() => setShowFullScorecard(true)}
+                                className={`px-4 py-2 rounded-md text-sm font-semibold transition bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 text-slate-300`}
+                            >
+                                Show Full Scorecard
+                            </button>
+                        </div>
+                        <Scoreboard
+                            state={gameState}
+                            dispatch={dispatch}
+                            onNewGame={handleNewGame}
+                            onNextInnings={handleNextInnings}
+                            onPredictMotm={() => setShowMotmModal(true)}
+                        />
+                    </div>
+                );
+            default:
+                return <div>Something went wrong</div>;
+        }
+    };
+
+    if (publicScorecardData) {
         return (
-          <>
-             <div className="w-full flex justify-end mb-4">
-                  <button 
-                    onClick={() => setShowFullScorecard(true)}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold transition bg-slate-700 hover:bg-slate-600 text-slate-300`}
-                  >
-                    Show Full Scorecard
-                  </button>
-               </div>
-            
-            <Scoreboard 
-                state={gameState}
-                dispatch={dispatch}
-                onNewGame={handleNewGame}
-                onNextInnings={handleNextInnings}
-                firstInningsSummary={firstInningsSummary}
-            />
-          </>
-        )
-      default:
-        return <div>Something went wrong</div>;
+            <div className="min-h-screen text-slate-100 flex flex-col items-center p-4 font-sans">
+                <header className="w-full max-w-5xl text-center mb-8 bg-slate-900/30 backdrop-blur-sm p-4 rounded-xl border border-slate-700/50">
+                    <div className="flex justify-center items-center">
+                        <div className="text-center">
+                            <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                                Youbee Cricket
+                            </h1>
+                            <p className="text-slate-400 mt-1">Public Match Scorecard</p>
+                        </div>
+                    </div>
+                </header>
+                <main className="w-full max-w-3xl">
+                    <FullScorecard
+                        firstInnings={publicScorecardData.firstInnings}
+                        currentInnings={publicScorecardData.currentInnings}
+                        teamA={publicScorecardData.teamA}
+                        teamB={publicScorecardData.teamB}
+                        onClose={() => (window.location.hash = '')}
+                        isPublicView={true}
+                    />
+                </main>
+                <footer className="mt-8 text-slate-500 text-sm text-center">
+                    <p>Crafted with ❤️ for Youbee</p>
+                </footer>
+            </div>
+        );
     }
-  };
 
-  if (!isAuthenticated) {
+
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4 font-sans">
-            <Login onLoginSuccess={handleLogin} />
+        <div className="min-h-screen text-slate-100 flex flex-col items-center p-4 font-sans">
+            <header className="w-full max-w-5xl text-center mb-8 bg-slate-900/30 backdrop-blur-sm p-4 rounded-xl border border-slate-700/50">
+                <div className="flex justify-between items-center">
+                    <div className="text-left">
+                      <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                          Youbee Cricket
+                      </h1>
+                      <p className="text-slate-400 mt-1">The ultimate gully cricket scorecard.</p>
+                    </div>
+                    {currentUser && (
+                        <div className="text-right">
+                            <p className="text-slate-300">Welcome, <span className="font-bold text-emerald-400">{currentUser}</span></p>
+                            <button onClick={handleLogout} className="text-sm text-slate-400 hover:text-white transition">Logout</button>
+                        </div>
+                    )}
+                </div>
+            </header>
+            <main className="w-full max-w-5xl">
+                {renderContent()}
+            </main>
+            {showFullScorecard && gameState && (
+                <FullScorecard
+                    firstInnings={firstInningsSummary}
+                    currentInnings={gameState}
+                    teamA={teamA}
+                    teamB={teamB}
+                    onClose={() => setShowFullScorecard(false)}
+                />
+            )}
+            {showMotmModal && gameState && firstInningsSummary && (
+              <ManOfTheMatch
+                matchData={{
+                  firstInnings: firstInningsSummary,
+                  currentInnings: gameState,
+                  teamA,
+                  teamB,
+                }}
+                onClose={() => setShowMotmModal(false)}
+              />
+            )}
+            <footer className="mt-8 text-slate-500 text-sm text-center">
+                <p>Crafted with ❤️ for Youbee</p>
+            </footer>
         </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center p-4 font-sans">
-        <header className="w-full max-w-4xl text-center mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                Youbee Cricket Score Card
-            </h1>
-            <p className="text-slate-400 mt-2">The ultimate tool for your local cricket matches.</p>
-        </header>
-        <main className="w-full max-w-4xl">
-            {renderContent()}
-        </main>
-        {showFullScorecard && gameState && (
-            <FullScorecard
-                firstInnings={firstInningsSummary}
-                currentInnings={gameState}
-                onClose={() => setShowFullScorecard(false)}
-            />
-        )}
-        <footer className="w-full max-w-4xl flex justify-between items-center mt-auto pt-8 text-slate-500">
-            <p>developed by Avinash</p>
-             <button 
-                onClick={handleLogout}
-                className="text-slate-500 hover:text-red-500 p-2 rounded-full transition duration-200"
-                aria-label="Logout"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-            </button>
-        </footer>
-    </div>
-  );
 };
 
 export default App;

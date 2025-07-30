@@ -9,8 +9,10 @@ export interface Team {
 }
 
 export enum AppState {
-  TEAM_SETUP,
+  LOGIN,
+  REGISTER,
   PLAYER_SETUP,
+  TEAM_SETUP,
   COIN_TOSS,
   MATCH_SETUP,
   SCOREBOARD,
@@ -81,3 +83,10 @@ export type ScoreAction =
   | { type: 'SET_NEXT_BOWLER'; payload: Player }
   | { type: 'UNDO_OVER' }
   | { type: 'SET_STATE'; payload: ScoreState | null };
+  
+export interface ShareableScorecardState {
+  firstInnings: ScoreState | null;
+  currentInnings: ScoreState;
+  teamA: Team;
+  teamB: Team;
+}

@@ -22,7 +22,6 @@ const ScorecardSummary: React.FC<ScorecardSummaryProps> = ({ summary, teamName }
               &nbsp;&nbsp;/&nbsp;&nbsp;{summary.wickets}
               <span className="text-2xl md:text-3xl text-slate-400 font-semibold tracking-normal ml-2">Wickets</span>
           </p>
-          <p className="text-xl text-slate-300 mt-2">Total Runs: {summary.runs}</p>
           <p className="text-lg text-slate-400 mt-2">
               Overs: {oversDisplay} / {summary.maxOvers}
           </p>

@@ -9,14 +9,16 @@ const urlsToCache = [
   '/index.tsx',
   '/App.tsx',
   '/types.ts',
-  '/components/Login.tsx',
   '/components/CoinToss.tsx',
   '/components/FullScorecard.tsx',
   '/components/MatchSetup.tsx',
   '/components/PlayerSetup.tsx',
   '/components/Scoreboard.tsx',
   '/components/ScorecardSummary.tsx',
-  '/components/TeamSetup.tsx'
+  '/components/TeamSetup.tsx',
+  '/components/Login.tsx',
+  '/components/Register.tsx',
+  '/components/ManOfTheMatch.tsx'
 ];
 
 self.addEventListener('install', event => {
