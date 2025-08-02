@@ -1,165 +1,240 @@
-
-import React, { useState, useMemo } from 'react';
-import { Player, MatchConfig, Team } from '../types.ts';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Player, MatchConfig, Team, ScoreState } from '../types.ts';
 
 interface MatchSetupProps {
-  allPlayers: Player[];
   onMatchStart: (config: MatchConfig) => void;
   teamA: Team;
   teamB: Team;
-  battingTeamName: string;
+  firstInningsSummary: ScoreState | null;
 }
 
-const MatchSetup: React.FC<MatchSetupProps> = ({ allPlayers, onMatchStart, teamA, teamB, battingTeamName }) => {
-  const [teamAPlayers, setTeamAPlayers] = useState<Player[]>([]);
-  const [teamBPlayers, setTeamBPlayers] = useState<Player[]>([]);
-  const [overs, setOvers] = useState<number>(5);
+const MatchSetup: React.FC<MatchSetupProps> = ({ onMatchStart, teamA, teamB, firstInningsSummary }) => {
+  const isSecondInnings = firstInningsSummary !== null;
+  
+  const [overs, setOvers] = useState<number>(isSecondInnings ? firstInningsSummary.maxOvers : 12);
+  const [tossWinnerName, setTossWinnerName] = useState<string>('');
+  const [tossWinnerChoice, setTossWinnerChoice] = useState<'Bat' | 'Bowl'>('Bat');
   const [openingBatsmanId, setOpeningBatsmanId] = useState<string>('');
   const [openingBowlerId, setOpeningBowlerId] = useState<string>('');
   const [error, setError] = useState('');
 
-  const availablePlayers = useMemo(() => {
-    const selectedIds = new Set([...teamAPlayers.map(p => p.id), ...teamBPlayers.map(p => p.id)]);
-    return allPlayers.filter(p => !selectedIds.has(p.id));
-  }, [allPlayers, teamAPlayers, teamBPlayers]);
-  
-  const battingTeamPlayers = battingTeamName === teamA.name ? teamAPlayers : teamBPlayers;
-  const bowlingTeamPlayers = battingTeamName === teamA.name ? teamBPlayers : teamAPlayers;
-
-
-  const handlePlayerAssign = (playerId: string, team: 'A' | 'B') => {
-    const player = allPlayers.find(p => p.id === playerId);
-    if (!player) return;
-    if (team === 'A') {
-      setTeamAPlayers(prev => [...prev, player]);
-    } else {
-      setTeamBPlayers(prev => [...prev, player]);
+  useEffect(() => {
+    // Reset selections if teams change, but not for second innings setup
+    if (!isSecondInnings) {
+        setTossWinnerName('');
     }
-  };
+    setOpeningBatsmanId('');
+    setOpeningBowlerId('');
+  }, [teamA, teamB, isSecondInnings]);
 
-  const handlePlayerRemove = (playerId: string, team: 'A' | 'B') => {
-    if (team === 'A') {
-      if(openingBatsmanId === playerId && battingTeamName === teamA.name) setOpeningBatsmanId('');
-      if(openingBowlerId === playerId && battingTeamName === teamB.name) setOpeningBowlerId('');
-      setTeamAPlayers(prev => prev.filter(p => p.id !== playerId));
-    } else {
-      if(openingBatsmanId === playerId && battingTeamName === teamB.name) setOpeningBatsmanId('');
-      if(openingBowlerId === playerId && battingTeamName === teamA.name) setOpeningBowlerId('');
-      setTeamBPlayers(prev => prev.filter(p => p.id !== playerId));
+  const { battingTeam, bowlingTeam } = useMemo(() => {
+    if (isSecondInnings && firstInningsSummary) {
+        return { 
+            battingTeam: firstInningsSummary.bowlingTeam, 
+            bowlingTeam: firstInningsSummary.battingTeam 
+        };
     }
-  };
+    
+    if (!tossWinnerName) return { battingTeam: null, bowlingTeam: null };
+    
+    const loserTeamName = tossWinnerName === teamA.name ? teamB.name : teamA.name;
+    const battingTeamName = tossWinnerChoice === 'Bat' ? tossWinnerName : loserTeamName;
+    
+    const battingT = battingTeamName === teamA.name ? teamA : teamB;
+    const bowlingT = battingTeamName === teamA.name ? teamB : teamA;
+    
+    return { battingTeam: battingT, bowlingTeam: bowlingT };
+  }, [tossWinnerName, tossWinnerChoice, teamA, teamB, isSecondInnings, firstInningsSummary]);
+
+  useEffect(() => {
+    setOpeningBatsmanId('');
+    setOpeningBowlerId('');
+  }, [battingTeam, bowlingTeam]);
+
 
   const handleStartMatch = () => {
-    if (teamAPlayers.length === 0 || teamBPlayers.length === 0) {
-      setError('Both teams must have at least one player.');
-      return;
+    setError('');
+    if (!isSecondInnings) {
+      if (!tossWinnerName) {
+        setError('Please select the team that won the toss.');
+        return;
+      }
+      if (overs <= 0) {
+        setError('Overs must be greater than 0.');
+        return;
+      }
     }
-    if (overs <= 0) {
-      setError('Overs must be greater than 0.');
-      return;
-    }
-    const openingBatsman = battingTeamPlayers.find(p => p.id === openingBatsmanId);
+    const openingBatsman = battingTeam?.players.find(p => p.id === openingBatsmanId);
     if (!openingBatsman) {
       setError('Please select an opening batsman.');
       return;
     }
-    const openingBowler = bowlingTeamPlayers.find(p => p.id === openingBowlerId);
+    const openingBowler = bowlingTeam?.players.find(p => p.id === openingBowlerId);
     if (!openingBowler) {
       setError('Please select an opening bowler.');
       return;
     }
+    if (!battingTeam || !bowlingTeam) {
+      setError('An error occurred setting up teams.');
+      return;
+    }
 
     onMatchStart({
-      teamA: { ...teamA, players: teamAPlayers },
-      teamB: { ...teamB, players: teamBPlayers },
+      teamA,
+      teamB,
       overs,
-      battingTeamName,
+      battingTeamName: battingTeam.name,
       openingBatsman,
       openingBowler,
     });
   };
 
+  const TeamRoster: React.FC<{ team: Team }> = ({ team }) => (
+    <div>
+        <h3 className="text-xl font-semibold text-slate-300 mb-3">{team.name}</h3>
+        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/80 max-h-48 overflow-y-auto">
+            <ul className="space-y-1">
+                {team.players.map(p => (
+                    <li key={p.id} className="text-slate-200 p-2 rounded bg-slate-800/80 font-medium text-sm">{p.name}</li>
+                ))}
+            </ul>
+        </div>
+    </div>
+  );
+
   return (
-    <div className="card p-6 md:p-8 rounded-xl shadow-2xl w-full animate-fade-in-up">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-emerald-400">
-          <span className="text-4xl font-black text-slate-500 mr-2">4</span>
-          Finalize Match
+    <div className="card p-6 md:p-10 rounded-2xl shadow-2xl w-full max-w-5xl mx-auto animate-fade-in-up border-cyan-500/20">
+      <div className="text-center mb-6 md:mb-10">
+        <h2 className="text-2xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500 flex items-center justify-center gap-4">
+          <span className="flex items-center justify-center w-10 h-10 text-2xl font-black text-slate-900 bg-cyan-400 rounded-full">2</span>
+          {isSecondInnings ? 'Setup Second Innings' : 'Finalize Match'}
         </h2>
-        <p className="text-slate-400 mt-2">Assign players to teams and set the match rules.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Team Selection */}
-        <div className="space-y-6">
-          <TeamSelector title={teamA.name} players={teamAPlayers} onRemove={pId => handlePlayerRemove(pId, 'A')} />
-          <TeamSelector title={teamB.name} players={teamBPlayers} onRemove={pId => handlePlayerRemove(pId, 'B')} />
-        </div>
-        
-        {/* Available Players */}
-        <div>
-            <h3 className="text-xl font-semibold text-slate-300 mb-3">Available Players</h3>
-             <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700 min-h-[16rem] max-h-96 overflow-y-auto">
-                {availablePlayers.length > 0 ? (
-                    <ul className="space-y-2">
-                        {availablePlayers.map(p => (
-                            <li key={p.id} className="flex justify-between items-center bg-slate-800/80 p-3 rounded-md">
-                                <span className="font-semibold">{p.name}</span>
-                                <div className="space-x-2">
-                                    <button onClick={() => handlePlayerAssign(p.id, 'A')} className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-md font-semibold">To {teamA.name}</button>
-                                    <button onClick={() => handlePlayerAssign(p.id, 'B')} className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1 rounded-md font-semibold">To {teamB.name}</button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                ) : <p className="text-slate-500 text-center pt-10">No more players available.</p>}
-             </div>
-        </div>
-      </div>
-
-      <div className="mt-8 pt-6 border-t border-slate-700">
-        <h3 className="text-xl font-semibold text-slate-300 mb-4">Match Settings</h3>
-         <p className="mb-6 bg-slate-700/50 p-3 rounded-md text-center text-lg text-emerald-300 border border-emerald-500/30">
-            <span className="font-bold">{battingTeamName}</span> won the toss and elected to bat first.
+        <p className="text-slate-400 mt-3">
+          {isSecondInnings 
+            ? `The target is set. Select your openers to begin the chase.` 
+            : 'Set the toss result and match rules to begin.'}
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div>
-            <label htmlFor="overs" className="block text-sm font-medium text-slate-400 mb-2">Total Overs</label>
-            <input
-              type="number"
-              id="overs"
-              value={overs}
-              onChange={e => setOvers(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-full bg-slate-700/50 text-white border-slate-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="openingBatsman" className="block text-sm font-medium text-slate-400 mb-2">Opening Batsman</label>
-            <select
-              id="openingBatsman"
-              value={openingBatsmanId}
-              onChange={e => setOpeningBatsmanId(e.target.value)}
-              className="w-full bg-slate-700/50 text-white border-slate-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              disabled={battingTeamPlayers.length === 0}
-            >
-              <option value="">Select Batsman</option>
-              {battingTeamPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-           <div>
-            <label htmlFor="openingBowler" className="block text-sm font-medium text-slate-400 mb-2">Opening Bowler</label>
-            <select
-              id="openingBowler"
-              value={openingBowlerId}
-              onChange={e => setOpeningBowlerId(e.target.value)}
-              className="w-full bg-slate-700/50 text-white border-slate-600 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              disabled={bowlingTeamPlayers.length === 0}
-            >
-              <option value="">Select Bowler</option>
-              {bowlingTeamPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <TeamRoster team={teamA} />
+        <TeamRoster team={teamB} />
+      </div>
+
+      <div className="mt-8 pt-8 border-t border-slate-700/80">
+        {isSecondInnings ? (
+            <div className="animate-fade-in-up">
+              <h3 className="text-xl font-semibold text-slate-300 mb-6 text-center">Second Innings Chase</h3>
+              <p className="mb-6 bg-slate-800/60 p-4 rounded-lg text-center text-lg text-cyan-300 border border-cyan-500/30">
+                  Target to Win: <span className="font-bold text-2xl">{firstInningsSummary.runs + 1}</span> runs in <span className="font-bold text-2xl">{firstInningsSummary.maxOvers}</span> overs.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+                <div>
+                  <label htmlFor="openingBatsman" className="block text-sm font-medium text-slate-400 mb-2">Opening Batsman ({battingTeam?.name})</label>
+                  <select
+                    id="openingBatsman"
+                    value={openingBatsmanId}
+                    onChange={e => setOpeningBatsmanId(e.target.value)}
+                    className="input-base"
+                  >
+                    <option value="">Select Batsman...</option>
+                    {battingTeam?.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="openingBowler" className="block text-sm font-medium text-slate-400 mb-2">Opening Bowler ({bowlingTeam?.name})</label>
+                  <select
+                    id="openingBowler"
+                    value={openingBowlerId}
+                    onChange={e => setOpeningBowlerId(e.target.value)}
+                    className="input-base"
+                  >
+                    <option value="">Select Bowler...</option>
+                    {bowlingTeam?.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+        ) : (
+          <>
+            <h3 className="text-xl font-semibold text-slate-300 mb-6">Toss & Match Settings</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                {/* Toss Winner */}
+                <div>
+                  <label htmlFor="tossWinner" className="block text-sm font-medium text-slate-400 mb-2">Toss Won By</label>
+                  <select
+                    id="tossWinner"
+                    value={tossWinnerName}
+                    onChange={e => setTossWinnerName(e.target.value)}
+                    className="input-base"
+                  >
+                    <option value="">Select winner...</option>
+                    <option value={teamA.name}>{teamA.name}</option>
+                    <option value={teamB.name}>{teamB.name}</option>
+                  </select>
+                </div>
+
+                {/* Toss Choice */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Winner's Choice</label>
+                    <div className="flex items-center gap-4 h-full">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="tossChoice" value="Bat" checked={tossWinnerChoice === 'Bat'} onChange={e => setTossWinnerChoice(e.target.value as 'Bat' | 'Bowl')} className="w-5 h-5 accent-cyan-500 bg-slate-700" />
+                            <span className="font-semibold">Bat First</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="tossChoice" value="Bowl" checked={tossWinnerChoice === 'Bowl'} onChange={e => setTossWinnerChoice(e.target.value as 'Bat' | 'Bowl')} className="w-5 h-5 accent-cyan-500 bg-slate-700" />
+                            <span className="font-semibold">Bowl First</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            {battingTeam && bowlingTeam && (
+              <div className="mt-6 animate-fade-in-up">
+                <p className="mb-6 bg-slate-800/60 p-4 rounded-lg text-center text-lg text-cyan-300 border border-cyan-500/30">
+                    <span className="font-bold">{battingTeam.name}</span> will bat first.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div>
+                    <label htmlFor="overs" className="block text-sm font-medium text-slate-400 mb-2">Total Overs</label>
+                    <input
+                      type="number"
+                      id="overs"
+                      value={overs}
+                      onChange={e => setOvers(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      className="input-base"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="openingBatsman" className="block text-sm font-medium text-slate-400 mb-2">Opening Batsman</label>
+                    <select
+                      id="openingBatsman"
+                      value={openingBatsmanId}
+                      onChange={e => setOpeningBatsmanId(e.target.value)}
+                      className="input-base"
+                    >
+                      <option value="">Select Batsman...</option>
+                      {battingTeam.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="openingBowler" className="block text-sm font-medium text-slate-400 mb-2">Opening Bowler</label>
+                    <select
+                      id="openingBowler"
+                      value={openingBowlerId}
+                      onChange={e => setOpeningBowlerId(e.target.value)}
+                      className="input-base"
+                    >
+                      <option value="">Select Bowler...</option>
+                      {bowlingTeam.players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
       
       {error && <p className="text-red-400 text-center mt-6">{error}</p>}
@@ -167,34 +242,14 @@ const MatchSetup: React.FC<MatchSetupProps> = ({ allPlayers, onMatchStart, teamA
       <div className="mt-10 text-center">
         <button
           onClick={handleStartMatch}
-          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-16 rounded-lg transition duration-200 shadow-lg shadow-emerald-600/20"
+          disabled={!battingTeam}
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-16 rounded-lg transition duration-200 shadow-lg shadow-emerald-600/20 transform hover:scale-105"
         >
-          Start Match
+          {isSecondInnings ? 'Start Chase' : 'Start Match'}
         </button>
       </div>
     </div>
   );
 };
-
-
-const TeamSelector: React.FC<{title: string, players: Player[], onRemove: (playerId: string) => void}> = ({ title, players, onRemove}) => {
-    return (
-        <div>
-            <h3 className="text-xl font-semibold text-slate-300 mb-3">{title} ({players.length})</h3>
-            <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-700 min-h-[8rem]">
-                {players.length > 0 ? (
-                    <ul className="space-y-1 p-1">
-                    {players.map(p => (
-                        <li key={p.id} className="flex justify-between items-center bg-slate-800/80 p-2 rounded-md text-sm">
-                            <span className="font-semibold">{p.name}</span>
-                            <button onClick={() => onRemove(p.id)} className="text-red-500 hover:text-red-400 font-bold text-lg">&times;</button>
-                        </li>
-                    ))}
-                    </ul>
-                ) : <p className="text-slate-500 text-center text-sm pt-8">Assign players from the 'Available' list.</p>}
-            </div>
-        </div>
-    );
-}
 
 export default MatchSetup;

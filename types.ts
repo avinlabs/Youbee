@@ -11,9 +11,7 @@ export interface Team {
 export enum AppState {
   LOGIN,
   REGISTER,
-  PLAYER_SETUP,
-  TEAM_SETUP,
-  COIN_TOSS,
+  TEAM_SELECTION,
   MATCH_SETUP,
   SCOREBOARD,
 }
@@ -40,10 +38,11 @@ export interface BowlingStats {
   playerId: string;
   playerName: string;
   overs: number;
-  ballsInCurrentOver: number;
   wickets: number;
   runsConceded: number;
   wides: number;
+  dotBalls: number;
+  foursConceded: number;
 }
 
 
@@ -82,6 +81,7 @@ export type ScoreAction =
   | { type: 'SET_NEXT_BATSMAN'; payload: Player }
   | { type: 'SET_NEXT_BOWLER'; payload: Player }
   | { type: 'UNDO_OVER' }
+  | { type: 'UNDO_LAST_BALL' }
   | { type: 'SET_STATE'; payload: ScoreState | null };
   
 export interface ShareableScorecardState {

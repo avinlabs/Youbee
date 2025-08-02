@@ -47,27 +47,27 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onPlayersSet, players: initia
   };
 
   return (
-    <div className="card p-6 md:p-8 rounded-xl shadow-2xl w-full animate-fade-in-up">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-emerald-400">
-          <span className="text-4xl font-black text-slate-500 mr-2">1</span>
+    <div className="card p-6 md:p-10 rounded-2xl shadow-2xl w-full max-w-3xl mx-auto animate-fade-in-up border-cyan-500/20">
+      <div className="text-center mb-6 md:mb-10">
+        <h2 className="text-2xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500 flex items-center justify-center gap-4">
+          <span className="flex items-center justify-center w-10 h-10 text-2xl font-black text-slate-900 bg-cyan-400 rounded-full">1</span>
           Add Players
         </h2>
-        <p className="text-slate-400 mt-2">Create your player roster. You need at least 2 players.</p>
+        <p className="text-slate-400 mt-3">Create your player roster. You need at least 2 players.</p>
       </div>
       
-      <div className="flex flex-col sm:flex-row gap-2 mb-4 max-w-lg mx-auto">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4 max-w-lg mx-auto">
         <input
           type="text"
           value={newPlayerName}
           onChange={(e) => setNewPlayerName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
           placeholder="Enter player name"
-          className="flex-grow bg-slate-700/50 text-white placeholder-slate-400 border border-slate-600 rounded-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="input-base flex-grow"
         />
         <button
           onClick={handleAddPlayer}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-md transition duration-200"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105"
         >
           Add Player
         </button>
@@ -75,17 +75,17 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onPlayersSet, players: initia
 
       {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
 
-      <div className="mt-6 max-w-lg mx-auto">
-        <h3 className="text-lg font-semibold text-slate-300 mb-2">Player List ({players.length})</h3>
-        <div className="max-h-60 overflow-y-auto bg-slate-900/50 rounded-lg p-2 border border-slate-700">
+      <div className="mt-8 max-w-lg mx-auto">
+        <h3 className="text-lg font-semibold text-slate-300 mb-3">Player List ({players.length})</h3>
+        <div className="max-h-48 md:max-h-60 overflow-y-auto bg-slate-900/50 rounded-lg p-2 border border-slate-700/80">
             {players.length === 0 ? (
-                <p className="text-slate-500 text-center py-4">No players added yet.</p>
+                <p className="text-slate-500 text-center py-8">No players added yet.</p>
             ) : (
-                <ul className="divide-y divide-slate-700">
-                {players.map(player => (
-                    <li key={player.id} className="flex justify-between items-center p-3">
-                    <span className="text-slate-200 font-semibold">{player.name}</span>
-                    <button onClick={() => handleRemovePlayer(player.id)} className="text-red-500 hover:text-red-400 font-bold text-lg">&times;</button>
+                <ul className="space-y-2">
+                {players.map((player, index) => (
+                    <li key={player.id} className={`flex justify-between items-center p-3 rounded-md transition-colors ${index % 2 === 0 ? 'bg-slate-800/60' : 'bg-slate-800/30'}`}>
+                        <span className="text-slate-200 font-semibold">{player.name}</span>
+                        <button onClick={() => handleRemovePlayer(player.id)} className="btn-danger">&times;</button>
                     </li>
                 ))}
                 </ul>
@@ -93,11 +93,11 @@ const PlayerSetup: React.FC<PlayerSetupProps> = ({ onPlayersSet, players: initia
         </div>
       </div>
       
-      <div className="mt-8 text-center">
+      <div className="mt-8 md:mt-10 text-center">
         <button
           onClick={handleProceed}
           disabled={players.length < 2}
-          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-12 rounded-md transition duration-200 disabled:bg-slate-700 disabled:cursor-not-allowed disabled:text-slate-500"
+          className="btn-primary w-full"
         >
           Next: Setup Teams
         </button>

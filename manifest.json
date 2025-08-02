@@ -1,7 +1,7 @@
 {
-  "short_name": "Cricket Score",
-  "name": "Cricket Score Card",
-  "description": "An interactive cricket score card application to manage players, teams, and live match scoring.",
+  "short_name": "SSL 4",
+  "name": "Super Sunday League 4",
+  "description": "An interactive cricket score card application for SSL 4. Manage players, teams, and live match scoring.",
   "icons": [
     {
       "src": "icon-192.png",

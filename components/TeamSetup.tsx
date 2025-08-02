@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Team } from '../types';
+import { Team } from '../types.ts';
 
 interface TeamSetupProps {
-  onTeamsSet: (teamAName: string, teamBName: string) => void;
+  onTeamsSet: (teamAName: string, teamBName:string) => void;
   teamA: Team;
   teamB: Team;
 }
@@ -32,13 +32,13 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ onTeamsSet, teamA, teamB }) => {
   };
 
   return (
-    <div className="card p-6 md:p-8 rounded-xl shadow-2xl w-full animate-fade-in-up">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-emerald-400">
-          <span className="text-4xl font-black text-slate-500 mr-2">2</span>
+    <div className="card p-6 md:p-10 rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-fade-in-up border-cyan-500/20">
+      <div className="text-center mb-6 md:mb-10">
+        <h2 className="text-2xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500 flex items-center justify-center gap-4">
+          <span className="flex items-center justify-center w-10 h-10 text-2xl font-black text-slate-900 bg-cyan-400 rounded-full">2</span>
           Setup Your Teams
         </h2>
-        <p className="text-slate-400 mt-2">Give your two competing teams a name.</p>
+        <p className="text-slate-400 mt-3">Give your two competing teams a name.</p>
       </div>
       
       <div className="space-y-6 mb-4 max-w-lg mx-auto">
@@ -50,7 +50,7 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ onTeamsSet, teamA, teamB }) => {
               value={teamAName}
               onChange={(e) => setTeamAName(e.target.value)}
               placeholder="E.g., Royal Challengers"
-              className="w-full bg-slate-700/50 text-white placeholder-slate-400 border border-slate-600 rounded-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="input-base"
             />
         </div>
         <div>
@@ -61,17 +61,17 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ onTeamsSet, teamA, teamB }) => {
               value={teamBName}
               onChange={(e) => setTeamBName(e.target.value)}
               placeholder="E.g., Mumbai Indians"
-              className="w-full bg-slate-700/50 text-white placeholder-slate-400 border border-slate-600 rounded-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="input-base"
             />
         </div>
       </div>
 
       {error && <p className="text-red-400 text-sm text-center my-6">{error}</p>}
       
-      <div className="mt-8 text-center">
+      <div className="mt-8 md:mt-10 text-center">
         <button
           onClick={handleProceed}
-          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-12 rounded-md transition duration-200"
+          className="btn-primary w-full"
         >
           Next: Coin Toss
         </button>

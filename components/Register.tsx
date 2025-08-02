@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getUsers, saveUsers } from '../storage.ts';
 
 interface RegisterProps {
   onRegisterSuccess: (username: string) => void;
@@ -20,12 +21,12 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
       return;
     }
     try {
-      const users = JSON.parse(localStorage.getItem('youbeeCricketUsers') || '{}');
+      const users = getUsers();
       if (users[username]) {
         setError('Username already exists. Please choose another one.');
       } else {
         users[username] = password;
-        localStorage.setItem('youbeeCricketUsers', JSON.stringify(users));
+        saveUsers(users);
         setError('');
         onRegisterSuccess(username);
       }
@@ -35,8 +36,8 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
   };
 
   return (
-    <div className="card p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-md mx-auto animate-fade-in-up">
-      <h2 className="text-3xl font-bold mb-2 text-emerald-400 text-center">Create Account</h2>
+    <div className="card p-8 sm:p-10 rounded-2xl shadow-2xl w-full max-w-md mx-auto animate-fade-in-up border-cyan-500/20">
+      <h2 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500 text-center">Create Account</h2>
       <p className="text-slate-400 mb-8 text-center">Join now to save your match progress.</p>
       
       <div className="space-y-6 mb-6">
@@ -48,7 +49,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Choose a username"
-              className="w-full bg-slate-700/50 text-white placeholder-slate-400 border border-slate-600 rounded-md py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="input-base"
             />
         </div>
         <div>
@@ -60,7 +61,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
               placeholder="Create a password"
-              className="w-full bg-slate-700/50 text-white placeholder-slate-400 border border-slate-600 rounded-md py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="input-base"
             />
         </div>
       </div>
@@ -70,13 +71,13 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
       <div className="mt-8 text-center">
         <button
           onClick={handleRegister}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-md transition duration-200"
+          className="btn-primary w-full"
         >
           Register
         </button>
         <p className="text-sm text-slate-400 mt-6">
           Already have an account?{' '}
-          <button onClick={onSwitchToLogin} className="font-semibold text-emerald-400 hover:text-emerald-300">
+          <button onClick={onSwitchToLogin} className="btn-text">
             Login
           </button>
         </p>

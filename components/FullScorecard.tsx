@@ -12,13 +12,13 @@ interface FullScorecardProps {
 }
 
 const StatTable: React.FC<{ title: string, headers: string[], children: React.ReactNode }> = ({ title, headers, children }) => (
-    <div className="mb-6">
-        <h4 className="text-lg font-semibold text-emerald-400 mb-3">{title}</h4>
-        <div className="overflow-x-auto">
+    <div className="mb-8">
+        <h4 className="text-lg font-semibold text-cyan-400 mb-3">{title}</h4>
+        <div className="overflow-x-auto rounded-lg border border-slate-700/80">
             <table className="w-full text-sm text-left text-slate-300">
-                <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
+                <thead className="text-xs text-slate-400 uppercase bg-slate-800/50">
                     <tr>
-                        {headers.map(h => <th key={h} scope="col" className="px-4 py-3">{h}</th>)}
+                        {headers.map(h => <th key={h} scope="col" className="px-6 py-4">{h}</th>)}
                     </tr>
                 </thead>
                 <tbody>
@@ -36,36 +36,41 @@ const InningsCard: React.FC<{ innings: ScoreState, inningsNum: 1 | 2 }> = ({ inn
         if(b.status === 'Not Out' && a.status !== 'Not Out') return 1;
         return 0;
     });
-    const bowlingOrder = Object.values(innings.bowlingStats).filter(b => b.overs > 0 || b.ballsInCurrentOver > 0 || b.runsConceded > 0);
+    const bowlingOrder = Object.values(innings.bowlingStats).filter(b => b.overs > 0 || b.wickets > 0 || b.runsConceded > 0 || (innings.currentBowlerId === b.playerId && innings.ballsInCurrentOver > 0 && !innings.inningsOver));
 
     return (
-        <div className="bg-slate-800/80 p-4 rounded-lg mb-6 border border-slate-700">
-            <h3 className="text-xl font-bold mb-4 text-center text-blue-400">{innings.battingTeam.name} - {inningsNum === 1 ? '1st' : '2nd'} Innings</h3>
+        <div className="bg-slate-900/40 p-6 rounded-xl mb-8 border border-slate-700/80">
+            <h3 className="text-xl font-bold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500">{innings.battingTeam.name} - {inningsNum === 1 ? '1st' : '2nd'} Innings</h3>
              
             <StatTable title="Batting" headers={['Batsman', 'Status', 'Fours', 'Balls']}>
                 {battingOrder.map(stats => (
-                    <tr key={stats.playerId} className="border-b border-slate-700/50 hover:bg-slate-700/20">
-                        <th scope="row" className="px-4 py-3 font-medium whitespace-nowrap">{stats.playerName}{stats.status === 'Not Out' ? '*' : ''}</th>
-                        <td className="px-4 py-3">{stats.status}</td>
-                        <td className="px-4 py-3">{stats.fours}</td>
-                        <td className="px-4 py-3">{stats.ballsFaced}</td>
+                    <tr key={stats.playerId} className="border-b border-slate-700/80 last:border-b-0 hover:bg-slate-800/40 transition-colors">
+                        <th scope="row" className="px-6 py-4 font-medium whitespace-nowrap text-white">{stats.playerName}{stats.status === 'Not Out' ? '*' : ''}</th>
+                        <td className={`px-6 py-4 ${stats.status === 'Out' ? 'text-red-400' : 'text-slate-300'}`}>{stats.status}</td>
+                        <td className="px-6 py-4 font-semibold text-emerald-400">{stats.fours}</td>
+                        <td className="px-6 py-4">{stats.ballsFaced}</td>
                     </tr>
                 ))}
             </StatTable>
 
-            <StatTable title="Bowling" headers={['Bowler', 'Overs', 'Wickets', 'Wides']}>
-                 {bowlingOrder.map(stats => (
-                    <tr key={stats.playerId} className="border-b border-slate-700/50 hover:bg-slate-700/20">
-                        <th scope="row" className="px-4 py-3 font-medium whitespace-nowrap">{stats.playerName}</th>
-                        <td className="px-4 py-3">{`${stats.overs}.${stats.ballsInCurrentOver}`}</td>
-                        <td className="px-4 py-3">{stats.wickets}</td>
-                        <td className="px-4 py-3">{stats.wides}</td>
-                    </tr>
-                ))}
+            <StatTable title="Bowling" headers={['Bowler', 'Overs', 'Wickets', 'Dots', '4s', 'Wides']}>
+                 {bowlingOrder.map(stats => {
+                    const balls = (stats.playerId === innings.currentBowlerId && !innings.inningsOver) ? innings.ballsInCurrentOver : 0;
+                    return (
+                        <tr key={stats.playerId} className="border-b border-slate-700/80 last:border-b-0 hover:bg-slate-800/40 transition-colors">
+                            <th scope="row" className="px-6 py-4 font-medium whitespace-nowrap text-white">{stats.playerName}</th>
+                            <td className="px-6 py-4">{`${stats.overs}.${balls}`}</td>
+                            <td className="px-6 py-4 font-semibold text-cyan-400">{stats.wickets}</td>
+                            <td className="px-6 py-4">{stats.dotBalls || 0}</td>
+                            <td className="px-6 py-4">{stats.foursConceded || 0}</td>
+                            <td className="px-6 py-4">{stats.wides}</td>
+                        </tr>
+                    )
+                 })}
             </StatTable>
 
-            <div className="text-right font-semibold text-slate-300 text-md mt-4 pr-4">
-                Total: <span className="font-bold text-white">{innings.fours} Fours / {innings.wickets} Wickets</span> in <span className="font-bold text-white">{`${innings.oversCompleted}.${innings.ballsInCurrentOver}`}</span> Overs
+            <div className="text-right font-semibold text-slate-300 text-lg mt-4 pr-4">
+                Total: <span className="font-bold text-white text-xl">{innings.fours} Fours / {innings.wickets} Wickets</span> in <span className="font-bold text-white text-xl">{`${innings.oversCompleted}.${innings.ballsInCurrentOver}`}</span> Overs
             </div>
         </div>
     );
@@ -101,22 +106,22 @@ const FullScorecard: React.FC<FullScorecardProps> = ({ firstInnings, currentInni
   };
 
   const containerClasses = isPublicView
-    ? "card rounded-xl shadow-2xl w-full max-w-3xl overflow-y-auto"
-    : "fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in-up";
+    ? "card rounded-2xl shadow-2xl w-full max-w-4xl mx-auto overflow-y-auto border-cyan-500/20"
+    : "fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in-up";
 
   const mainContentClasses = isPublicView
     ? ""
-    : "card rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto";
+    : "card rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border-cyan-500/20";
 
   const ScorecardContent = () => (
     <div className={mainContentClasses} onClick={isPublicView ? undefined : e => e.stopPropagation()}>
-      <div className="p-6 sticky top-0 bg-slate-900/50 backdrop-blur-sm z-10 border-b border-slate-700 flex justify-between items-center">
+      <div className="p-6 sticky top-0 bg-slate-900/70 backdrop-blur-sm z-10 border-b border-slate-700/80 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-bold text-slate-100">Full Match Scorecard</h2>
           {!isPublicView && (
             <button
               onClick={handleShare}
-              className="text-sm font-semibold bg-emerald-600/50 hover:bg-emerald-500/60 text-emerald-200 py-1 px-3 rounded-md transition duration-200"
+              className="text-sm font-semibold bg-emerald-600/80 hover:bg-emerald-600 text-white py-2 px-4 rounded-lg transition duration-200"
             >
               {copyStatus}
             </button>
@@ -126,9 +131,14 @@ const FullScorecard: React.FC<FullScorecardProps> = ({ firstInnings, currentInni
           <button onClick={onClose} className="text-slate-400 hover:text-white text-3xl font-bold">&times;</button>
         )}
       </div>
-      <div className="p-6">
+      <div className="p-4 sm:p-8">
         {firstInnings && <InningsCard innings={firstInnings} inningsNum={1} />}
         {currentInnings && <InningsCard innings={currentInnings} inningsNum={currentInnings.target ? 2 : 1} />}
+        {currentInnings.statusMessage && (
+          <div className="text-center p-6 bg-slate-800/60 rounded-xl border border-yellow-500/30">
+            <h3 className="text-2xl font-bold text-yellow-400">{currentInnings.statusMessage}</h3>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cricket Score Card</title>
+    <title>Super Sunday League 4</title>
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#172554">
+    <meta name="theme-color" content="#0f172a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -18,12 +18,22 @@
               sans: ['Poppins', 'sans-serif'],
             },
             colors: {
-              'navy': {
-                '950': '#172554',
-                '900': '#1e3a8a',
-                '800': '#1e40af',
-                '500': '#3b82f6',
+              slate: {
+                850: '#172033',
+                950: '#0b1120',
               },
+              cyan: {
+                300: '#67e8f9',
+                400: '#22d3ee',
+                500: '#06b6d4',
+                600: '#0891b2',
+              },
+              emerald: {
+                300: '#6ee7b7',
+                400: '#34d399',
+                500: '#10b981',
+                600: '#059669',
+              }
             },
             keyframes: {
               'gradient-animation': {
@@ -34,27 +44,62 @@
               'fade-in-up': {
                 '0%': { opacity: '0', transform: 'translateY(20px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              'glow': {
+                '0%, 100%': { boxShadow: '0 0 20px rgba(6, 182, 212, 0.3), 0 0 30px rgba(6, 182, 212, 0.2)' },
+                '50%': { boxShadow: '0 0 30px rgba(6, 182, 212, 0.5), 0 0 45px rgba(6, 182, 212, 0.4)' },
               }
             },
             animation: {
-              'gradient': 'gradient-animation 15s ease infinite',
-              'fade-in-up': 'fade-in-up 0.5s ease-out forwards',
+              'gradient': 'gradient-animation 18s ease infinite',
+              'fade-in-up': 'fade-in-up 0.6s ease-out forwards',
+              'glow': 'glow 4s ease-in-out infinite alternate',
             }
           },
         },
       }
     </script>
     <style>
+      html {
+        color-scheme: dark;
+      }
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
       .gradient-bg {
-        background: linear-gradient(-45deg, #0f172a, #132a4e, #1e3a8a, #0c1a3a);
+        background: linear-gradient(-45deg, #020617, #0f172a, #0b1120, #000000);
         background-size: 400% 400%;
-        animation: gradient-animation 15s ease infinite;
+        animation: gradient-animation 18s ease infinite;
       }
       .card {
-        background-color: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(51, 65, 85, 0.7);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        background-color: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+      }
+      .input-base {
+        @apply w-full bg-slate-950 text-slate-100 placeholder-slate-400 border border-slate-700 rounded-lg py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300;
+      }
+      /* Fix for browser autofill styles */
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 30px #0b1120 inset !important;
+          -webkit-text-fill-color: #f1f5f9 !important;
+      }
+      .btn-primary {
+        @apply bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg transition duration-300 transform hover:scale-105 shadow-lg shadow-cyan-600/20;
+      }
+      .btn-secondary {
+        @apply bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition duration-300;
+      }
+      .btn-danger {
+         @apply text-red-500 hover:text-red-400 font-bold text-lg transition-colors;
+      }
+      .btn-text {
+        @apply font-semibold text-cyan-400 hover:text-cyan-300 transition-colors;
       }
     </style>
   <script type="importmap">

@@ -1,15 +1,13 @@
-
 import React, { useState, useCallback, useReducer, useEffect } from 'react';
 import { AppState, Player, MatchConfig, Team, ScoreState, ScoreAction, BattingStats, BowlingStats, ScoreStateSnapshot, ShareableScorecardState } from './types.ts';
-import PlayerSetup from './components/PlayerSetup.tsx';
+import * as storage from './storage.ts';
 import MatchSetup from './components/MatchSetup.tsx';
 import Scoreboard from './components/Scoreboard.tsx';
-import TeamSetup from './components/TeamSetup.tsx';
-import CoinToss from './components/CoinToss.tsx';
 import FullScorecard from './components/FullScorecard.tsx';
 import Login from './components/Login.tsx';
 import Register from './components/Register.tsx';
 import ManOfTheMatch from './components/ManOfTheMatch.tsx';
+import TeamSelection from './components/TeamSelection.tsx';
 
 
 // Reducer Logic
@@ -25,7 +23,7 @@ const createInitialState = (config: MatchConfig, target: number | null): ScoreSt
     }, {} as Record<string, BattingStats>);
 
     const initialBowlingStats: Record<string, BowlingStats> = bowlingTeam.players.reduce((acc, player) => {
-        acc[player.id] = { playerId: player.id, playerName: player.name, overs: 0, ballsInCurrentOver: 0, wickets: 0, runsConceded: 0, wides: 0 };
+        acc[player.id] = { playerId: player.id, playerName: player.name, overs: 0, wickets: 0, runsConceded: 0, wides: 0, dotBalls: 0, foursConceded: 0 };
         return acc;
     }, {} as Record<string, BowlingStats>);
 
@@ -83,135 +81,187 @@ function scoreReducer(state: ScoreState | null, action: ScoreAction): ScoreState
       return action.payload;
   }
 
-  // If state is not initialized and the action is not SET_STATE, do nothing.
+  // If state is not initialized, do nothing.
   if (!state) {
     return null;
   }
   
-  // After initialization, prevent most actions when an innings is over.
-  if (state.inningsOver && action.type !== 'UNDO_OVER') {
-    return state;
-  }
-
-  if (action.type === 'UNDO_OVER') {
-      const overToReset = state.oversCompleted;
+  // Handle undos before other actions
+  if (action.type === 'UNDO_LAST_BALL') {
       if (state.history.length <= 1) return state;
-      let lastStateOfPreviousOverIndex = -1;
-      for (let i = state.history.length - 2; i >= 0; i--) {
-        if (state.history[i].oversCompleted < overToReset) {
-          lastStateOfPreviousOverIndex = i;
-          break;
-        }
-      }
-      
-      if(lastStateOfPreviousOverIndex !== -1) {
-          const restoredSnapshot = state.history[lastStateOfPreviousOverIndex + 1] ?? state.history[0];
-          const newHistory = state.history.slice(0, lastStateOfPreviousOverIndex + 2);
-          return { ...restoredSnapshot, history: newHistory };
-      }
-      const initialSnapshot = state.history[0];
-      return { ...initialSnapshot, history: [initialSnapshot] };
+      const newHistory = state.history.slice(0, -1);
+      const restoredSnapshot = newHistory[newHistory.length - 1];
+      return { ...restoredSnapshot, history: newHistory };
+  }
+  
+  if (action.type === 'UNDO_OVER') {
+    if (state.history.length <= 1) return state;
+    
+    let overToReset = state.oversCompleted;
+    // If we are exactly at the start of a new over (e.g. 5.0), we intend to reset the previous one (over 4).
+    if (state.ballsInCurrentOver === 0 && state.currentOverEvents.length === 0 && overToReset > 0) {
+        overToReset -= 1;
+    }
+
+    const startOfOverIndex = state.history.findIndex(s => s.oversCompleted === overToReset && s.ballsInCurrentOver === 0);
+    
+    if (startOfOverIndex === -1) return state;
+
+    const newHistory = state.history.slice(0, startOfOverIndex + 1);
+    const restoredState = newHistory[newHistory.length - 1];
+    
+    return { ...restoredState, history: newHistory };
+  }
+  
+  // After handling undos, prevent most actions when an innings is over.
+  if (state.inningsOver) {
+    return state;
   }
   
   const { history, ...currentState } = state;
-  let intermediateState: ScoreStateSnapshot = { ...currentState };
-
-  const updateBowlerStats = (bowlerId: string, updates: Partial<BowlingStats>) => {
-      const bowler = intermediateState.bowlingStats[bowlerId];
-      intermediateState.bowlingStats[bowlerId] = { ...bowler, ...updates };
-  };
-  const updateBatsmanStats = (batsmanId: string, updates: Partial<BattingStats>) => {
-      const batsman = intermediateState.battingStats[batsmanId];
-      intermediateState.battingStats[batsmanId] = { ...batsman, ...updates };
-  };
+  let nextState: ScoreStateSnapshot = { ...currentState };
 
   switch (action.type) {
     case 'SCORE': {
-      let newBalls = intermediateState.ballsInCurrentOver + 1;
-      intermediateState.runs += action.payload;
-      updateBatsmanStats(intermediateState.currentBatsmanId, { runs: intermediateState.battingStats[intermediateState.currentBatsmanId].runs + action.payload, ballsFaced: intermediateState.battingStats[intermediateState.currentBatsmanId].ballsFaced + 1 });
-      updateBowlerStats(intermediateState.currentBowlerId, { runsConceded: intermediateState.bowlingStats[intermediateState.currentBowlerId].runsConceded + action.payload });
+        const { payload: runsScored } = action;
+        const { currentBatsmanId, currentBowlerId, battingStats, bowlingStats } = currentState;
+        const newBalls = currentState.ballsInCurrentOver + 1;
+        const isOverEnd = newBalls === 6;
 
-      if (action.payload === 4) {
-          intermediateState.fours += 1;
-          updateBatsmanStats(intermediateState.currentBatsmanId, { fours: intermediateState.battingStats[intermediateState.currentBatsmanId].fours + 1 });
-      }
-
-      intermediateState.currentOverEvents.push(`${action.payload}`);
-
-      if (newBalls === 6) {
-          newBalls = 0;
-          intermediateState.oversCompleted += 1;
-          updateBowlerStats(intermediateState.currentBowlerId, { ballsInCurrentOver: 0, overs: intermediateState.bowlingStats[intermediateState.currentBowlerId].overs + 1 });
-          intermediateState.widesInCurrentOver = 0;
-          intermediateState.currentOverEvents = [];
-      } else {
-          updateBowlerStats(intermediateState.currentBowlerId, { ballsInCurrentOver: newBalls });
-      }
-      intermediateState.ballsInCurrentOver = newBalls;
-      break;
+        nextState = {
+            ...currentState,
+            runs: currentState.runs + runsScored,
+            ballsInCurrentOver: isOverEnd ? 0 : newBalls,
+            oversCompleted: isOverEnd ? currentState.oversCompleted + 1 : currentState.oversCompleted,
+            fours: currentState.fours + (runsScored === 4 ? 1 : 0),
+            currentOverEvents: isOverEnd ? [] : [...currentState.currentOverEvents, `${runsScored}`],
+            widesInCurrentOver: isOverEnd ? 0 : currentState.widesInCurrentOver,
+            battingStats: {
+                ...battingStats,
+                [currentBatsmanId]: {
+                    ...battingStats[currentBatsmanId],
+                    runs: battingStats[currentBatsmanId].runs + runsScored,
+                    ballsFaced: battingStats[currentBatsmanId].ballsFaced + 1,
+                    ...(runsScored === 4 && { fours: battingStats[currentBatsmanId].fours + 1 }),
+                },
+            },
+            bowlingStats: {
+                ...bowlingStats,
+                [currentBowlerId]: {
+                    ...bowlingStats[currentBowlerId],
+                    runsConceded: bowlingStats[currentBowlerId].runsConceded + runsScored,
+                    dotBalls: bowlingStats[currentBowlerId].dotBalls + (runsScored === 0 ? 1 : 0),
+                    foursConceded: bowlingStats[currentBowlerId].foursConceded + (runsScored === 4 ? 1 : 0),
+                    overs: isOverEnd ? bowlingStats[currentBowlerId].overs + 1 : bowlingStats[currentBowlerId].overs,
+                },
+            },
+        };
+        break;
     }
     case 'EXTRA': {
-      intermediateState.runs += action.payload.runs;
-      updateBowlerStats(intermediateState.currentBowlerId, { runsConceded: intermediateState.bowlingStats[intermediateState.currentBowlerId].runsConceded + action.payload.runs });
-      let event = '';
+        const { runs, type } = action.payload;
+        const { currentBowlerId, bowlingStats } = currentState;
+        
+        let event = '';
+        let runsToAdd = runs;
+        let isFour = false;
+        let isWide = type === 'Wd';
 
-      if (action.payload.type === 'Nb') {
-        intermediateState.fours += 1;
-        event = '4n';
-      }
-
-      if (action.payload.type === 'Wd') {
-        intermediateState.widesInCurrentOver += 1;
-        updateBowlerStats(intermediateState.currentBowlerId, { wides: intermediateState.bowlingStats[intermediateState.currentBowlerId].wides + 1 });
-        event = 'Wd';
-        if (intermediateState.widesInCurrentOver === 3) {
-            intermediateState.runs += 4;
-            updateBowlerStats(intermediateState.currentBowlerId, { runsConceded: intermediateState.bowlingStats[intermediateState.currentBowlerId].runsConceded + 4 });
-            intermediateState.fours += 1;
-            intermediateState.widesInCurrentOver = 0;
+        const bowlerStats = { ...bowlingStats[currentBowlerId] };
+        
+        if (isWide) {
+            event = 'Wd';
+            const newWidesCount = currentState.widesInCurrentOver + 1;
+            bowlerStats.wides += 1;
+            if (newWidesCount === 3) {
+                runsToAdd += 4;
+                isFour = true;
+            }
+        } else if (type === 'Nb') { // 'Nb' with 4 runs
+            event = '4n';
+            isFour = true;
         }
-      }
-      intermediateState.currentOverEvents.push(event);
-      break;
+
+        bowlerStats.runsConceded += runsToAdd;
+        if (isFour) {
+            bowlerStats.foursConceded += 1;
+        }
+
+        nextState = {
+            ...currentState,
+            runs: currentState.runs + runsToAdd,
+            fours: currentState.fours + (isFour ? 1 : 0),
+            widesInCurrentOver: isWide ? (currentState.widesInCurrentOver + 1) % 3 : currentState.widesInCurrentOver,
+            currentOverEvents: [...currentState.currentOverEvents, event],
+            bowlingStats: {
+                ...bowlingStats,
+                [currentBowlerId]: bowlerStats
+            }
+        };
+        break;
     }
     case 'WICKET': {
-      let newBalls = intermediateState.ballsInCurrentOver + 1;
-      intermediateState.wickets += 1;
-      updateBatsmanStats(intermediateState.currentBatsmanId, { status: 'Out', ballsFaced: intermediateState.battingStats[intermediateState.currentBatsmanId].ballsFaced + 1 });
-      updateBowlerStats(intermediateState.currentBowlerId, { wickets: intermediateState.bowlingStats[intermediateState.currentBowlerId].wickets + 1 });
-      
-      intermediateState.currentOverEvents.push('Wkt');
+        const { currentBatsmanId, currentBowlerId, battingStats, bowlingStats } = currentState;
+        const newBalls = currentState.ballsInCurrentOver + 1;
+        const isOverEnd = newBalls === 6;
 
-      if (newBalls === 6) {
-          newBalls = 0;
-          intermediateState.oversCompleted += 1;
-          updateBowlerStats(intermediateState.currentBowlerId, { ballsInCurrentOver: 0, overs: intermediateState.bowlingStats[intermediateState.currentBowlerId].overs + 1 });
-          intermediateState.widesInCurrentOver = 0;
-          intermediateState.currentOverEvents = [];
-      } else {
-           updateBowlerStats(intermediateState.currentBowlerId, { ballsInCurrentOver: newBalls });
-      }
-      intermediateState.ballsInCurrentOver = newBalls;
-      break;
+        nextState = {
+            ...currentState,
+            wickets: currentState.wickets + 1,
+            ballsInCurrentOver: isOverEnd ? 0 : newBalls,
+            oversCompleted: isOverEnd ? currentState.oversCompleted + 1 : currentState.oversCompleted,
+            currentOverEvents: isOverEnd ? [] : [...currentState.currentOverEvents, 'Wkt'],
+            widesInCurrentOver: isOverEnd ? 0 : currentState.widesInCurrentOver,
+            battingStats: {
+                ...battingStats,
+                [currentBatsmanId]: {
+                    ...battingStats[currentBatsmanId],
+                    status: 'Out',
+                    ballsFaced: battingStats[currentBatsmanId].ballsFaced + 1,
+                },
+            },
+            bowlingStats: {
+                ...bowlingStats,
+                [currentBowlerId]: {
+                    ...bowlingStats[currentBowlerId],
+                    wickets: bowlingStats[currentBowlerId].wickets + 1,
+                    dotBalls: bowlingStats[currentBowlerId].dotBalls + 1,
+                    overs: isOverEnd ? bowlingStats[currentBowlerId].overs + 1 : bowlingStats[currentBowlerId].overs,
+                },
+            },
+        };
+        break;
     }
     case 'RETIRE_BATSMAN': {
-      const batsmanToRetire = intermediateState.battingTeam.players.find(p => p.id === intermediateState.currentBatsmanId)!;
-      updateBatsmanStats(intermediateState.currentBatsmanId, { status: 'Retired' });
-      intermediateState.retiredBatsmen.push(batsmanToRetire);
+      const { currentBatsmanId, battingTeam, battingStats, retiredBatsmen } = nextState;
+      const batsmanToRetire = battingTeam.players.find(p => p.id === currentBatsmanId)!;
+      nextState = {
+        ...nextState,
+        battingStats: {
+            ...battingStats,
+            [currentBatsmanId]: { ...battingStats[currentBatsmanId], status: 'Retired' }
+        },
+        retiredBatsmen: [...retiredBatsmen, batsmanToRetire],
+      };
       break;
     }
     case 'SET_NEXT_BATSMAN':
-      intermediateState.currentBatsmanId = action.payload.id;
-      intermediateState.remainingBatsmen = intermediateState.remainingBatsmen.filter(p => p.id !== action.payload.id);
-      intermediateState.retiredBatsmen = intermediateState.retiredBatsmen.filter(p => p.id !== action.payload.id);
+      nextState = {
+        ...nextState,
+        currentBatsmanId: action.payload.id,
+        remainingBatsmen: nextState.remainingBatsmen.filter(p => p.id !== action.payload.id),
+        retiredBatsmen: nextState.retiredBatsmen.filter(p => p.id !== action.payload.id),
+      };
       break;
     case 'SET_NEXT_BOWLER':
-      intermediateState.currentBowlerId = action.payload.id;
-      intermediateState.statusMessage = intermediateState.target ? `Target: ${intermediateState.target}` : 'Match in Progress...';
+      nextState = {
+        ...nextState,
+        currentBowlerId: action.payload.id,
+        statusMessage: nextState.target ? `Target: ${nextState.target}` : 'Match in Progress...',
+      };
       break;
   }
-  const completedState = checkCompletion(intermediateState, intermediateState.battingTeam.name, intermediateState.bowlingTeam.name);
+  const completedState = checkCompletion(nextState, nextState.battingTeam.name, nextState.bowlingTeam.name);
   const snapshot: ScoreStateSnapshot = { ...completedState };
   return { ...completedState, history: [...history, snapshot] };
 }
@@ -220,27 +270,12 @@ const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<string | null>(null);
     const [publicScorecardData, setPublicScorecardData] = useState<ShareableScorecardState | null>(null);
 
-
-    const loadGameState = (username: string) => {
-        try {
-            const serializedState = localStorage.getItem(`youbeeCricketState_${username}`);
-            return serializedState ? JSON.parse(serializedState) : undefined;
-        } catch (err) {
-            console.error("Could not load state from localStorage", err);
-            return undefined;
-        }
-    };
-
-    const savedState = currentUser ? loadGameState(currentUser) : undefined;
-
     const [appState, setAppState] = useState<AppState>(AppState.LOGIN);
-    const [players, setPlayers] = useState<Player[]>(savedState?.players || []);
-    const [teamA, setTeamA] = useState<Team>(savedState?.teamA || { name: '', players: [] });
-    const [teamB, setTeamB] = useState<Team>(savedState?.teamB || { name: '', players: [] });
-    const [tossWinnerBatting, setTossWinnerBatting] = useState<string | null>(savedState?.tossWinnerBatting || null);
-    const [matchConfig, setMatchConfig] = useState<MatchConfig | null>(savedState?.matchConfig || null);
-    const [gameState, dispatch] = useReducer(scoreReducer, savedState?.gameState || null);
-    const [firstInningsSummary, setFirstInningsSummary] = useState<ScoreState | null>(savedState?.firstInningsSummary || null);
+    const [teamA, setTeamA] = useState<Team>({ name: '', players: [] });
+    const [teamB, setTeamB] = useState<Team>({ name: '', players: [] });
+    const [matchConfig, setMatchConfig] = useState<MatchConfig | null>(null);
+    const [gameState, dispatch] = useReducer(scoreReducer, null);
+    const [firstInningsSummary, setFirstInningsSummary] = useState<ScoreState | null>(null);
     const [showFullScorecard, setShowFullScorecard] = useState(false);
     const [showMotmModal, setShowMotmModal] = useState(false);
 
@@ -272,7 +307,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (publicScorecardData) return; // Don't try to load user data if on a public page
-        const loggedInUser = localStorage.getItem('youbeeCricketCurrentUser');
+        const loggedInUser = storage.getLoggedInUser();
         if (loggedInUser) {
             handleLoginSuccess(loggedInUser);
         }
@@ -280,44 +315,33 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (!currentUser || publicScorecardData) return;
-        try {
-            const stateToSave = {
-                appState,
-                players,
-                teamA,
-                teamB,
-                tossWinnerBatting,
-                matchConfig,
-                gameState,
-                firstInningsSummary,
-            };
-            const serializedState = JSON.stringify(stateToSave);
-            localStorage.setItem(`youbeeCricketState_${currentUser}`, serializedState);
-        } catch (err) {
-            console.error("Could not save state to localStorage", err);
-        }
-    }, [appState, players, teamA, teamB, tossWinnerBatting, matchConfig, gameState, firstInningsSummary, currentUser, publicScorecardData]);
+        const stateToSave: storage.GameState = {
+            appState,
+            teamA,
+            teamB,
+            matchConfig,
+            gameState,
+            firstInningsSummary,
+        };
+        storage.saveGameState(currentUser, stateToSave);
+    }, [appState, teamA, teamB, matchConfig, gameState, firstInningsSummary, currentUser, publicScorecardData]);
 
     const handleLoginSuccess = (username: string) => {
         setCurrentUser(username);
-        localStorage.setItem('youbeeCricketCurrentUser', username);
-        const userGameState = loadGameState(username);
+        storage.setLoggedInUser(username);
+        const userGameState = storage.loadGameState(username);
         if (userGameState) {
-            setAppState(userGameState.appState || AppState.PLAYER_SETUP);
-            setPlayers(userGameState.players || []);
+            setAppState(userGameState.appState || AppState.TEAM_SELECTION);
             setTeamA(userGameState.teamA || { name: '', players: [] });
             setTeamB(userGameState.teamB || { name: '', players: [] });
-            setTossWinnerBatting(userGameState.tossWinnerBatting || null);
             setMatchConfig(userGameState.matchConfig || null);
             dispatch({ type: 'SET_STATE', payload: userGameState.gameState || null });
             setFirstInningsSummary(userGameState.firstInningsSummary || null);
         } else {
-            setAppState(AppState.PLAYER_SETUP);
+            setAppState(AppState.TEAM_SELECTION);
             // Reset all game state for new user
-            setPlayers([]);
             setTeamA({ name: '', players: [] });
             setTeamB({ name: '', players: [] });
-            setTossWinnerBatting(null);
             setMatchConfig(null);
             dispatch({ type: 'SET_STATE', payload: null });
             setFirstInningsSummary(null);
@@ -326,65 +350,39 @@ const App: React.FC = () => {
 
     const handleLogout = () => {
         setCurrentUser(null);
-        localStorage.removeItem('youbeeCricketCurrentUser');
+        storage.clearLoggedInUser();
         setAppState(AppState.LOGIN);
     };
 
-    const handleTeamsSet = useCallback((nameA: string, nameB: string) => {
-        setTeamA({ name: nameA, players: [] });
-        setTeamB({ name: nameB, players: [] });
-        setAppState(AppState.COIN_TOSS);
+    const handleTeamsSelected = useCallback((teamA: Team, teamB: Team) => {
+      setTeamA(teamA);
+      setTeamB(teamB);
+      setAppState(AppState.MATCH_SETUP);
     }, []);
-
-    const handlePlayersSet = useCallback((newPlayers: Player[]) => {
-        setPlayers(newPlayers);
-        setAppState(AppState.TEAM_SETUP);
-    }, []);
-
-    const handleTossComplete = useCallback((battingTeamName: string) => {
-        setTossWinnerBatting(battingTeamName);
-        setAppState(AppState.MATCH_SETUP);
-    }, []);
-
+    
     const handleMatchStart = useCallback((config: MatchConfig) => {
         setMatchConfig(config);
-        setFirstInningsSummary(null);
-        dispatch({ type: 'SET_STATE', payload: createInitialState(config, null) });
+        const target = firstInningsSummary ? firstInningsSummary.runs + 1 : null;
+        dispatch({ type: 'SET_STATE', payload: createInitialState(config, target) });
         setAppState(AppState.SCOREBOARD);
-    }, []);
+    }, [firstInningsSummary]);
 
     const handleNewGame = useCallback(() => {
         if (currentUser) {
-            localStorage.removeItem(`youbeeCricketState_${currentUser}`);
+            storage.removeGameState(currentUser);
         }
-        setAppState(AppState.PLAYER_SETUP);
-        setPlayers([]);
+        setAppState(AppState.TEAM_SELECTION);
         setMatchConfig(null);
         setTeamA({ name: '', players: [] });
         setTeamB({ name: '', players: [] });
-        setTossWinnerBatting(null);
         setFirstInningsSummary(null);
         dispatch({ type: 'SET_STATE', payload: null });
     }, [currentUser]);
 
     const handleNextInnings = useCallback((firstInningsFinalState: ScoreState) => {
         if (!matchConfig) return;
-
         setFirstInningsSummary(firstInningsFinalState);
-        const newBattingTeamName = firstInningsFinalState.bowlingTeam.name;
-        const newBattingTeam = newBattingTeamName === matchConfig.teamA.name ? matchConfig.teamA : matchConfig.teamB;
-        const newBowlingTeam = newBattingTeamName === matchConfig.teamA.name ? matchConfig.teamB : matchConfig.teamA;
-
-        const newConfig: MatchConfig = {
-            ...matchConfig,
-            battingTeamName: newBattingTeamName,
-            openingBatsman: newBattingTeam.players[0],
-            openingBowler: newBowlingTeam.players[0],
-        };
-
-        setMatchConfig(newConfig);
-        const target = firstInningsFinalState.runs + 1;
-        dispatch({ type: 'SET_STATE', payload: createInitialState(newConfig, target) });
+        setAppState(AppState.MATCH_SETUP);
     }, [matchConfig]);
 
     const renderContent = () => {
@@ -393,28 +391,23 @@ const App: React.FC = () => {
                 return <Login onLoginSuccess={handleLoginSuccess} onSwitchToRegister={() => setAppState(AppState.REGISTER)} />;
             case AppState.REGISTER:
                 return <Register onRegisterSuccess={handleLoginSuccess} onSwitchToLogin={() => setAppState(AppState.LOGIN)} />;
-            case AppState.PLAYER_SETUP:
-                return <PlayerSetup onPlayersSet={handlePlayersSet} players={players} />;
-            case AppState.TEAM_SETUP:
-                return <TeamSetup onTeamsSet={handleTeamsSet} teamA={teamA} teamB={teamB} />;
-            case AppState.COIN_TOSS:
-                return <CoinToss teamA={teamA} teamB={teamB} onTossComplete={handleTossComplete} />;
+            case AppState.TEAM_SELECTION:
+                return <TeamSelection onTeamsSelected={handleTeamsSelected} />;
             case AppState.MATCH_SETUP:
                 return <MatchSetup
-                    allPlayers={players}
                     onMatchStart={handleMatchStart}
                     teamA={teamA}
                     teamB={teamB}
-                    battingTeamName={tossWinnerBatting!}
+                    firstInningsSummary={firstInningsSummary}
                 />;
             case AppState.SCOREBOARD:
                 if (!gameState || !matchConfig) return <div>Error: Match not configured</div>;
                 return (
                     <div className="animate-fade-in-up">
                         <div className="w-full flex justify-end mb-4">
-                            <button
+                             <button
                                 onClick={() => setShowFullScorecard(true)}
-                                className={`px-4 py-2 rounded-md text-sm font-semibold transition bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 text-slate-300`}
+                                className="btn-secondary py-2 px-5"
                             >
                                 Show Full Scorecard
                             </button>
@@ -425,6 +418,7 @@ const App: React.FC = () => {
                             onNewGame={handleNewGame}
                             onNextInnings={handleNextInnings}
                             onPredictMotm={() => setShowMotmModal(true)}
+                            onShowScorecard={() => setShowFullScorecard(true)}
                         />
                     </div>
                 );
@@ -436,17 +430,17 @@ const App: React.FC = () => {
     if (publicScorecardData) {
         return (
             <div className="min-h-screen text-slate-100 flex flex-col items-center p-4 font-sans">
-                <header className="w-full max-w-5xl text-center mb-8 bg-slate-900/30 backdrop-blur-sm p-4 rounded-xl border border-slate-700/50">
-                    <div className="flex justify-center items-center">
+                 <header className="w-full max-w-4xl mx-auto text-center mb-8">
+                    <div className="flex justify-center items-center py-6">
                         <div className="text-center">
-                            <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                                Youbee Cricket
+                             <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500">
+                                Super Sunday League 4
                             </h1>
-                            <p className="text-slate-400 mt-1">Public Match Scorecard</p>
+                            <p className="text-slate-400 mt-1">SSL 4 - 2025 | Public Match Scorecard</p>
                         </div>
                     </div>
                 </header>
-                <main className="w-full max-w-3xl">
+                <main className="w-full max-w-4xl mx-auto">
                     <FullScorecard
                         firstInnings={publicScorecardData.firstInnings}
                         currentInnings={publicScorecardData.currentInnings}
@@ -457,7 +451,7 @@ const App: React.FC = () => {
                     />
                 </main>
                 <footer className="mt-8 text-slate-500 text-sm text-center">
-                    <p>Crafted with ❤️ for Youbee</p>
+                    <p>Crafted with ❤️ for SSL</p>
                 </footer>
             </div>
         );
@@ -465,24 +459,26 @@ const App: React.FC = () => {
 
 
     return (
-        <div className="min-h-screen text-slate-100 flex flex-col items-center p-4 font-sans">
-            <header className="w-full max-w-5xl text-center mb-8 bg-slate-900/30 backdrop-blur-sm p-4 rounded-xl border border-slate-700/50">
-                <div className="flex justify-between items-center">
+        <div className="min-h-screen text-slate-100 flex flex-col items-center font-sans">
+            <header className="w-full max-w-6xl mx-auto px-4">
+                <div className="flex justify-between items-center py-4 border-b border-slate-800">
                     <div className="text-left">
-                      <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                          Youbee Cricket
-                      </h1>
-                      <p className="text-slate-400 mt-1">The ultimate gully cricket scorecard.</p>
+                        <h1 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-500">
+                           Super Sunday League 4
+                        </h1>
+                        <p className="text-slate-400 text-sm mt-1">SSL 4 - 2025 | The ultimate gully cricket scorecard.</p>
                     </div>
                     {currentUser && (
-                        <div className="text-right">
-                            <p className="text-slate-300">Welcome, <span className="font-bold text-emerald-400">{currentUser}</span></p>
-                            <button onClick={handleLogout} className="text-sm text-slate-400 hover:text-white transition">Logout</button>
-                        </div>
+                       <div className="text-right flex items-center gap-4">
+                             <p className="text-slate-300 hidden sm:block">Welcome, <span className="font-bold text-cyan-400">{currentUser}</span></p>
+                            <button onClick={handleLogout} className="btn-secondary">
+                              Logout
+                            </button> 
+                        </div> 
                     )}
                 </div>
             </header>
-            <main className="w-full max-w-5xl">
+            <main className="w-full max-w-6xl mx-auto px-4 py-4 sm:py-8">
                 {renderContent()}
             </main>
             {showFullScorecard && gameState && (
@@ -505,8 +501,8 @@ const App: React.FC = () => {
                 onClose={() => setShowMotmModal(false)}
               />
             )}
-            <footer className="mt-8 text-slate-500 text-sm text-center">
-                <p>Crafted with ❤️ for Youbee</p>
+             <footer className="w-full max-w-6xl mx-auto px-4 py-6 text-slate-500 text-sm text-center border-t border-slate-800">
+                <p>Crafted with ❤️ for SSL</p>
             </footer>
         </div>
     );

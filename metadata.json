@@ -1,6 +1,6 @@
 {
-  "name": "v2 Cricket",
-  "description": "An interactive cricket score card application to manage players, teams, and live match scoring. Track runs, wickets, and overs with an intuitive interface.",
+  "name": "Super Sunday League 4",
+  "description": "An interactive cricket score card application for SSL 4. Manage players, teams, and live match scoring. Track runs, wickets, and overs with an intuitive interface.",
   "requestFramePermissions": [],
   "prompt": ""
 }

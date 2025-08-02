@@ -21,8 +21,11 @@ const buildPrompt = (data: ShareableScorecardState): string => {
 
     const formatBowling = (innings: ScoreState) =>
         Object.values(innings.bowlingStats)
-            .filter(p => p.overs > 0 || p.ballsInCurrentOver > 0 || p.wickets > 0)
-            .map(p => `  - ${p.playerName}: ${p.wickets} Wickets, ${p.wides} wides in ${p.overs}.${p.ballsInCurrentOver} overs`)
+            .filter(p => p.overs > 0 || p.wickets > 0 || (p.playerId === innings.currentBowlerId && innings.ballsInCurrentOver > 0))
+            .map(p => {
+                const balls = p.playerId === innings.currentBowlerId ? innings.ballsInCurrentOver : 0;
+                return `  - ${p.playerName}: ${p.wickets} Wickets, ${p.wides} wides in ${p.overs}.${balls} overs`;
+            })
             .join('\n');
 
     const prompt = `
@@ -109,15 +112,15 @@ const ManOfTheMatch: React.FC<ManOfTheMatchProps> = ({ matchData, onClose }) => 
 
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in-up" onClick={onClose}>
-        <div className="card rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="p-6 relative">
-                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl font-bold">&times;</button>
-                <h2 className="text-2xl font-bold text-center text-purple-400 mb-4">✨ Man of the Match Prediction</h2>
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in-up" onClick={onClose}>
+        <div className="card rounded-2xl shadow-2xl w-full max-w-md border-purple-500/20" onClick={e => e.stopPropagation()}>
+            <div className="p-8 relative">
+                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl font-bold transition-colors">&times;</button>
+                <h2 className="text-2xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-6">✨ Man of the Match</h2>
                 <div className="min-h-[150px] flex items-center justify-center bg-slate-900/50 p-6 rounded-lg border border-slate-700">
                     {loading && (
                         <div className="text-center">
-                            <div className="animate-spin w-10 h-10 border-4 border-t-purple-400 border-slate-600 rounded-full mx-auto"></div>
+                            <div className="w-12 h-12 border-4 border-t-purple-400 border-slate-600 rounded-full mx-auto animate-spin"></div>
                             <p className="mt-4 text-slate-400">The AI is analyzing the match...</p>
                         </div>
                     )}
